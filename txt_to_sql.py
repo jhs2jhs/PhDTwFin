@@ -1,6 +1,6 @@
 import db_util as dbutil
 
-readlines_number = 10000
+readlines_number = 50000
 
 def sentiment_uk_txt_file_read(filename):
     f = open(filename)
@@ -17,7 +17,8 @@ def sentiment_uk_txt_file_read(filename):
             twitter_stm = unicode(words[1], encoding='UTF-8')
             twitter_id = words[2]
             language = unicode(words[3], encoding='UTF-8').strip('\n')
-            word = (sentiment, twitter_stm, twitter_id, language)
+            #word = (sentiment, twitter_stm, twitter_id, language)
+            word = (twitter_id, sentiment, twitter_stm, language)
             words_list.append(word)
         #dbutil.bulk_insert(words_list, dbutil.conn_uk, dbutil.sql_insert_words_uk_list)
         dbutil.bulk_insert(words_list, dbutil.conn, dbutil.sql_insert_words_uk_list)
@@ -38,7 +39,8 @@ def sentiment_world_txt_file_read(filename):
             twitter_stm = unicode(words[1], encoding='UTF-8')
             twitter_id = words[2]
             language = unicode(words[3], encoding='UTF-8').strip('\n')
-            word = (sentiment, twitter_stm, twitter_id, language)
+            #word = (sentiment, twitter_stm, twitter_id, language)
+            word = (twitter_id, sentiment, twitter_stm, language)
             words_list.append(word)
         #dbutil.bulk_insert(words_list, dbutil.conn_world, dbutil.sql_insert_words_world_list)
         dbutil.bulk_insert(words_list, dbutil.conn, dbutil.sql_insert_words_world_list)
@@ -89,7 +91,8 @@ def checkin_txt_file_read(filename):
             createdat = unicode(words[4], encoding='UTF-8')
             text = unicode(words[5], encoding='UTF-8')
             place_id = unicode(words[6], encoding='UTF-8').strip('\n')
-            word = (u_id, tweet_id, latitude, longitude, createdat, text, place_id)
+            #word = (u_id, tweet_id, latitude, longitude, createdat, text, place_id)
+            word = (tweet_id, u_id, latitude, longitude, createdat, text, place_id)
             #print word
             words_list.append(word)
         #dbutil.bulk_insert(words_list, dbutil.conn_checkin, dbutil.sql_insert_words_checkin_list)

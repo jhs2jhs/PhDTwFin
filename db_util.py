@@ -71,6 +71,34 @@ CREATE TABLE IF NOT EXISTS checkin_data (
   text TEXT, 
   place_id TEXT
 );
+-----------------
+CREATE TABLE IF NOT EXISTS twitter_world_raw (
+  t_id INTEGER NOT NULL PRIMARY KEY,
+  stm TEXT NOT NULL,
+  text TEXT,
+  lang TEXT
+);
+CREATE TABLE IF NOT EXISTS twitter_uk_raw (
+  t_id INTEGER NOT NULL PRIMARY KEY,
+  stm TEXT NOT NULL,
+  text TEXT,
+  lang TEXT
+);
+CREATE TABLE IF NOT EXISTS users_data_raw (
+  u_id INTEGER NOT NULl PRIMARY KEY,
+  status_count INTEGER,
+  followers_count INTEGER,
+  friends_count INTEGER
+);
+CREATE TABLE IF NOT EXISTS checkin_data_raw (
+  t_id INTEGER NOT NULL PRIMARY KEY,
+  u_id INTEGER, 
+  latitude REAL, 
+  longitude REAL, 
+  create_time TEXT,
+  place_id TEXT,  
+  text TEXT -- i may delete it later
+);
 '''
 
 def db_create():
@@ -227,16 +255,16 @@ def checkin_txt_to_db_list(words_list):
 
 
 sql_insert_words_world_list = '''
-INSERT INTO twitter_world_simple (stm_id, twitter_text, twitter_id, l_id) VALUES (?, ?, ?, ?)
+INSERT INTO twitter_world_raw (t_id, stm, text, lang) VALUES (?, ?, ?, ?)
 '''
 sql_insert_words_uk_list = '''
-INSERT INTO twitter_uk_simple (stm_id, twitter_text, twitter_id, l_id) VALUES (?, ?, ?, ?)
+INSERT INTO twitter_uk_raw (t_id, stm, text, lang) VALUES (?, ?, ?, ?)
 '''
 sql_insert_words_users_data_list = '''
-INSERT INTO users_data (u_id, status_count, followers_count, friends_count) VALUES (?, ?, ?, ?)
+INSERT INTO users_data_raw (u_id, status_count, followers_count, friends_count) VALUES (?, ?, ?, ?)
 '''
 sql_insert_words_checkin_list = '''
-INSERT INTO checkin_data (u_id, tweet_id, latitude, longitude, createdat, text, place_id) VALUES (?, ?, ?, ?, ?, ?, ?)
+INSERT INTO checkin_data_raw (t_id, u_id, latitude, longitude, create_time, place_id, text) VALUES (?, ?, ?, ?, ?, ?, ?)
 '''
 def bulk_insert(words_list, conn, sql):
     #global conn
