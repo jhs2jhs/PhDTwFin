@@ -1,17 +1,21 @@
 import sqlite3
 import sys
+folder = './result/'
 
-db_filename = "./result/twiter_finance.db"
+db_filename = folder+"twiter_finance.db"
 conn = sqlite3.connect(db_filename)
 
-db_filename_uk = "./result/tf_uk.db"
+db_filename_uk = folder+"tf_uk.db"
 conn_uk = sqlite3.connect(db_filename_uk)
-db_filename_world = "./result/tf_world.db"
+db_filename_world = folder+"tf_world.db"
 conn_world = sqlite3.connect(db_filename_world)
-db_filename_userdata = "./result/tf_userdata.db"
+db_filename_userdata = folder+"tf_userdata.db"
 conn_userdata = sqlite3.connect(db_filename_userdata)
-db_filename_checkin = "./result/tf_checkin.db"
+db_filename_checkin = folder+"tf_checkin.db"
 conn_checkin = sqlite3.connect(db_filename_checkin)
+
+db_filename_one = folder+"twitter_finance_one.db"
+conn_one = sqlite3.connect(db_filename_one)
 
 sql_init = '''
 CREATE TABLE IF NOT EXISTS sentiment (
@@ -99,7 +103,33 @@ CREATE TABLE IF NOT EXISTS checkin_data_raw (
   place_id TEXT,  
   text TEXT -- i may delete it later
 );
+---------------------------
+CREATE TABLE IF NOT EXISTS users_data_one (
+  u_id INTEGER NOT NULl PRIMARY KEY,
+  status_count INTEGER,
+  followers_count INTEGER,
+  friends_count INTEGER
+);
+CREATE TABLE IF NOT EXISTS checkin_data_one (
+  t_id INTEGER NOT NULL PRIMARY KEY,
+  u_id INTEGER, 
+  latitude REAL, 
+  longitude REAL, 
+  create_time TEXT,
+  place_id TEXT,  
+  text TEXT, -- i may delete it later
+  stm TEXT,
+  lang TEXT
+);
 '''
+
+
+'''
+INSERT OR IGNORE INTO checkin_data_one (t_id, u_id, latitude, longitude, create_time, place_id, text) SELECT tweet_id, u_id, latitude, longitude, createdat, place_id, text FROM checkin_data
+
+INSERT OR IGNORE INTO users_data_one (u_id, status_count, followers_count, friends_count) SELECT u_id, status_count, followers_count, friends_count FROM users_data
+'''
+
 
 def db_create():
     global conn, conn_uk, conn_world, conn_userdata, conn_checkin, sql_init
@@ -124,6 +154,11 @@ def db_create():
     c.close()
 ################
     c = conn_checkin.cursor()
+    c.executescript(sql_init)
+    conn.commit()
+    c.close()
+################
+    c = conn_one.cursor()
     c.executescript(sql_init)
     conn.commit()
     c.close()
@@ -266,6 +301,19 @@ INSERT INTO users_data_raw (u_id, status_count, followers_count, friends_count) 
 sql_insert_words_checkin_list = '''
 INSERT INTO checkin_data_raw (t_id, u_id, latitude, longitude, create_time, place_id, text) VALUES (?, ?, ?, ?, ?, ?, ?)
 '''
+
+########################
+
+sql_insert_words_users_data_list_one = '''
+INSERT INTO users_data_one (u_id, status_count, followers_count, friends_count) VALUES (?, ?, ?, ?)
+'''
+sql_insert_words_checkin_list_one = '''
+INSERT INTO checkin_data_one (t_id, u_id, latitude, longitude, create_time, place_id, text) VALUES (?, ?, ?, ?, ?, ?, ?)
+'''
+sql_insert_words_checkin_list_one_update = '''
+UPDATE checkin_data_one SET stm = ?, lang = ? WHERE t_id = ?
+'''
+
 def bulk_insert(words_list, conn, sql):
     #global conn
     c = conn.cursor()

@@ -1,6 +1,7 @@
 import db_util as dbutil
+import codecs
 
-readlines_number = 50000
+readlines_number = 10000
 
 def sentiment_uk_txt_file_read(filename):
     f = open(filename)
@@ -112,6 +113,62 @@ def checkin_txt_file_read(filename):
             print len(words)
         dbutil.checkin_txt_to_db(words)
 '''
+
+
+def checkin_txt_file_read_one(filename):
+    #f = codecs.open(filename, encoding='utf-8')
+    f = open(filename)
+    index = 0
+    while True:
+        lines = f.readlines(readlines_number)
+        #print readlines_number
+        words_list = []
+        print "index: %d"%(index)
+        index = index + 1 
+        if not lines:
+            break
+        for l in lines:
+            words = l.split("\t") 
+            #if len(words) != 7:
+                #print len(words), words
+                #raise Exception
+            #print words
+            u_id = words[0]
+            tweet_id = words[1]
+            latitude = words[2]
+            longitude = words[3]
+            createdat = words[4]
+            text = unicode(words[5], encoding='utf-8')
+            place_id = unicode(words[6], encoding='utf-8').strip('\n')
+            word = (tweet_id, u_id, latitude, longitude, createdat, text, place_id)
+            words_list.append(word)
+        dbutil.bulk_insert(words_list, dbutil.conn_one, dbutil.sql_insert_words_checkin_list_one)
+    f.close()
+
+
+def sentiment_world_txt_file_read_one(filename):
+    #f = codecs.open(filename, encoding='utf-8')
+    f = open(filename)
+    while True:
+        lines = f.readlines(readlines_number)
+        if not lines:
+            break
+        words_list = []
+        for l in lines:
+            words = l.split("\t")
+            if len(words) != 4:
+                print len(words), words
+            sentiment = words[0]
+            #text = unicode(words[1], encoding='UTF-8')
+            twitter_id = words[2]
+            language = unicode(words[3], encoding='utf-8').strip('\n')
+            #word = (sentiment, twitter_stm, twitter_id, language)
+            word = (twitter_id, sentiment, language)
+            words_list.append(word)
+        #dbutil.bulk_insert(words_list, dbutil.conn_world, dbutil.sql_insert_words_world_list)
+        dbutil.bulk_insert(words_list, dbutil.conn_one, dbutil.sql_insert_words_world_list_one_update)
+    f.close()
+
 
 if __name__ == "__main__":
     print "txt_to_sql"
