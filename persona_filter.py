@@ -235,15 +235,16 @@ def read_line_loop_body(line):
     for tweet_id in sent_world_dict:
         d = sent_world_dict[tweet_id]
                 #print d
-        sent = d['sent']
-        tweet = d['tweet']
-        lang = d['lang']
+        sent = d['sent'].strip()
+        tweet = d['tweet'].strip()
+        lang = d['lang'].strip()
         if not checkin_data_dict.has_key(tweet_id):
             u_id = 'not_appear'
             date_txt = 'not_appear'
         else:
             u_id = checkin_data_dict[tweet_id]['u_id']
-            date_txt = checkin_data_dict[tweet_id]['date']
+            date_txt = checkin_data_dict[tweet_id]['date'].strip()
+        print "hello:>>", u_id, tweet_id, sent, lang, date_txt, tweet
         msg = '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n'%(company_id, company_f100_id, company_name, str(words_search_keyword), u_id, tweet_id, sent, lang, date_txt, tweet)
                 #if isinstance(msg, str):
                 #    msg = unicode(msg, 'utf-8')
