@@ -3,10 +3,13 @@ from db_util import conn
 from datetime import datetime
 import codecs
 import sqlite3
+from datetime import datetime, date, timedelta
+from dateutil.relativedelta import relativedelta
 
 file_name = 'EventStudyTwitter20120422'
 persona_db = './persona/%s.db'%file_name
 company_list_file = './persona/%s.txt'%file_name
+company_list_date_file = './persona/%s_date.txt'%file_name
 conn_clean_path = './data_clean/main.db'
 conn_clean = sqlite3.connect(conn_clean_path)
 
@@ -392,7 +395,7 @@ def filter_company_without_date(fortune_id, company_name, where_sql):
         c.execute(sql_company_table_insert, params)
     c.close()
 
-def event_study_twitter():
+def event_study_twitter_to_db():
     print 'event study start'
     persona_db_init()
     f_list = open(company_list_file, 'rU')
@@ -411,6 +414,81 @@ def event_study_twitter():
             filter_company_without_date(fortune_id, company_name, company_where_sql)
     f_list.close()
 
+persona_db_sql_company_table_check = '''
+SELECT name FROM sqlite_master WHERE type='table' AND name='%s'
+'''
+
+def get_company_date(line):
+    line = line.strip()
+    words = line.split('\t')
+    length = len(words)
+    if length != 4:
+        raise Exception ('length error:%d'%length)
+    fortune_id = words[0]
+    company_name = words[1]
+    company_date_c = words[2]
+    company_date_bn = words[3]
+    return fortune_id, company_name, company_date_c, company_date_bn
+
+def event_study_twitter_to_file_date():
+    f_list = open(company_list_date_file, 'rU')
+    lines = f_list.readline()
+    while True:
+        lines = f_list.readlines(1)
+        if not lines:
+            break
+        c = conn_persona.cursor()
+        for line in lines:
+            #print line
+            fortune_id, company_name, company_date_c, company_date_bn = get_company_date(line)
+            #print fortune_id, company_name, company_date_c, company_date_bn
+            company_table_name = company_table_name_get(fortune_id, company_name)
+            #print company_table_name
+            #c.execute(persona_db_sql_company_table_check%company_table_name)
+            #print c.fetchall()[0][0] == company_table_name
+            d = datetime.strptime(company_date_c, '%Y%m%d')
+            print d, d+relativedelta(months=-3)
+            ####### next steps will be used to fixed date with query
+        c.close()
+    f_list.close()
+
+def persona_twitter_to_file(fortune_id, company_name, keywords):
+    company_table_name = company_table_name_get(fortune_id, company_name)
+    file_out = codecs.open('./persona/%s.txt'%company_table_name, 'w', encoding='utf-8')
+    file_out.write('%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\n'%('fortune_id', 'company_name', 'additiona_search_keywords', 'user_id', 'tweet_id', 'sentiment', 'language', 'date', 'tweet'))
+    print company_table_name
+    sql = 'SELECT * FROM %s'%company_table_name
+    #print sql
+    c = conn_persona.cursor()
+    c.execute(sql)
+    results = c.fetchall()
+    for result in results:
+        user_id = result[1]
+        tweet_id = result[2]
+        sentiment = result[3]
+        language = result[4]
+        date = result[5]
+        tweet = result[6]
+        file_out.write('%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\n'%(fortune_id, company_name, str(keywords), user_id, tweet_id, sentiment, language, date, tweet))
+    c.close()
+    file_out.close()
+        
+    
+
+def event_study_twitter_to_file_full():
+    c = conn_persona.cursor()
+    sql = 'SELECT * FROM persona_company'
+    c.execute(sql)
+    results = c.fetchall()
+    for result in results:
+        #print result
+        fortune_id = result[0]
+        company_name = result[1]
+        keywords = result[3]
+        #print fortune_id, company_name, keywords
+        persona_twitter_to_file(fortune_id, company_name, keywords)
+    c.close()
+
 if __name__ == '__main__':
-    event_study_twitter()
+    event_study_twitter_to_file_full()
     
