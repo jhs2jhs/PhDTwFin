@@ -5,6 +5,9 @@ import codecs
 import sqlite3
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
+import httplib2
+import urllib
+from BeautifulSoup import Tag, NavigableString, BeautifulSoup
 
 file_name = 'EventStudyTwitter20120422'
 persona_db = './persona/%s.db'%file_name
@@ -489,6 +492,89 @@ def event_study_twitter_to_file_full():
         persona_twitter_to_file(fortune_id, company_name, keywords)
     c.close()
 
+persona_db_sql_user_init = '''
+DROP TABLE IF EXISTS users;
+CREATE TABLE IF NOT EXISTS users (
+  user_id TEXT UNIQUE NOT NULL,
+  user_name TEXT
+);
+'''
+def persona_db_user_init():
+    c = conn_persona.cursor()
+    c.executescript(persona_db_sql_user_init)
+    conn_persona.commit()
+    c.close()
+
+def persona_db_user_id_dict_get(fortune_id, company_name):
+    company_table_name = company_table_name_get(fortune_id, company_name)
+    sql = 'SELECT * FROM %s'%company_table_name
+    c = conn_persona.cursor()
+    c.execute(sql)
+    results = c.fetchall()
+    user_ids = {}
+    for result in results:
+        user_id = result[1]
+        user_ids[user_id] = user_id
+    c.close()
+    return user_ids
+        
+def persona_db_user_id_unique_insert(user_ids):
+    c = conn_persona.cursor()
+    sql = 'INSERT OR IGNORE INTO users (user_id) VALUES (?)'
+    for user_id in user_ids:
+        #print user_id
+        param = (str(user_id), )
+        c.execute(sql, param)
+        conn_persona.commit()
+    c.close()
+        
+        
+
+def persona_db_unique_user_id():
+    persona_db_user_init()
+    c = conn_persona.cursor()
+    sql = 'SELECT * FROM persona_company'
+    c.execute(sql)
+    results = c.fetchall()
+    for result in results:
+        fortune_id = result[0]
+        company_name = result[1]
+        keywords = result[3]
+        user_ids = persona_db_user_id_dict_get(fortune_id, company_name)
+        #print user_ids
+        persona_db_user_id_unique_insert(user_ids)
+        print 'finish company:%s_%s'%(fortune_id, company_name)
+    c.close()
+
+http = httplib2.Http()
+def twidder_id_to_name(url):
+    resp, content = http.request(url, 'GET')
+    if resp['status'] != '200':
+        raise Exception('response status error: %s'%resp['status'])
+    #print content
+    soup = BeautifulSoup(content)
+    lists_names = soup.findAll('a')
+    print lists_names
+                
+
+def persona_db_unique_user_name():
+    c = conn_persona.cursor()
+    sql = 'SELECT * FROM users'
+    c.execute(sql)
+    results = c.fetchall()
+    #print len(results), results[0]
+    for result in results:
+        user_id = result[0]
+        #print user_id, type(user_id)
+        url = 'http://id.twidder.info/cgi-bin/tw_un?UserID=%s'%user_id
+        #print url
+        twidder_id_to_name(url)
+        break
+    c.close()
+
 if __name__ == '__main__':
-    event_study_twitter_to_file_full()
+    #event_study_twitter_to_db()
+    #event_study_twitter_to_file_full()
+    #persona_db_unique_user_id()
+    persona_db_unique_user_name()
     
