@@ -4,7 +4,9 @@ from datetime import datetime
 import codecs
 import sqlite3
 
-company_list_file = './persona/list.txt'
+file_name = 'EventStudyTwitter20120422'
+persona_db = './persona/%s.db'%file_name
+company_list_file = './persona/%s.txt'%file_name
 conn_clean_path = './data_clean/main.db'
 conn_clean = sqlite3.connect(conn_clean_path)
 
@@ -274,4 +276,78 @@ def filter_with_company_list_full():
             read_line_loop_body(line)
     f_list.close()
     
+conn_persona = sqlite3.connect(persona_db)
+persona_db_sql_init = '''
+DROP TABLE IF EXISTS persona_company;
+CREATE TABLE IF NOT EXISTS persona_company (
+  fortune_id INTEGER NOT NULL,
+  company_name TEXT NOT NULL,
+  where_sql TEXT,
+  search_keywords TEXT
+);
+'''
+def persona_db_init():
+    c = conn_persona.cursor()
+    c.executescript(persona_db_sql_init)
+    conn_persona.commit()
+    c.close()
 
+persona_db_sql_company_meta_insert = '''
+INSERT INTO persona_company (fortune_id, company_name, where_sql, search_keywords) VALUES (?, ?, ?, ?)
+'''
+def personal_db_company_meta_insert(fortune_id, company_name, company_search_keywords, company_where_sql):
+    c = conn_persona.cursor()
+    #company_search_keywords
+    param = (fortune_id, company_name, company_where_sql, str(company_search_keywords))
+    c.execute(persona_db_sql_company_meta_insert, param)
+    conn_persona.commit()
+    c.close()
+    
+
+def read_company_line(line):
+    line = line.strip()
+    words = line.split('\t')
+    where_sql = ''
+    where_column = 'twitter_text'
+    words_search_keyword = []
+    length = len(words)
+    if length < 2:
+        raise Exception('list should have more than 2 columns')
+    if length >= 2:
+        company_f100_id = words[0]
+        company_name = words[1]
+        company_name = company_name.strip()
+        where_sql = where_sql+str(where_column)+' LIKE \'%'+str(company_name)+'%\' '
+                #print where_sql
+    if length > 2:
+        for word_i in range(2, length):
+            word_sk = words[word_i]
+            word_sk = word_sk.strip()
+            words_search_keyword.append(word_sk)
+            where_sql = where_sql+' OR '+str(where_column)+' LIKE \'%'+str(word_sk)+'%\' '
+                #print words_search_keyword
+    #print "reading company (%s): %s"%(str(company_f100_id), company_name)
+    #print company_f100_id, company_name, where_sql, words_search_keyword
+    return company_f100_id, company_name, where_sql, words_search_keyword
+
+def event_study_twitter():
+    print 'event study start'
+    persona_db_init()
+    f_list = open(company_list_file, 'rU')
+    lines = f_list.readline()
+    #print lines, 'cool'
+    #print company_list_file
+    #if 
+    while True:
+        lines = f_list.readlines(1)
+        if not lines:
+            break
+        for line in lines:
+            #print line.strip()
+            fortune_id, company_name, company_where_sql, company_search_keywords = read_company_line(line)
+            personal_db_company_meta_insert(fortune_id, company_name, company_search_keywords, company_where_sql)
+    f_list.close()
+
+if __name__ == '__main__':
+    event_study_twitter()
+    
