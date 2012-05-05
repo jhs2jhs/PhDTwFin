@@ -302,7 +302,41 @@ def personal_db_company_meta_insert(fortune_id, company_name, company_search_key
     c.execute(persona_db_sql_company_meta_insert, param)
     conn_persona.commit()
     c.close()
-    
+  
+def company_table_name_get(fortune_id, company_name):
+    c_name = company_name.replace(" ", "_")
+    c_name = c_name.replace("-", "_")
+    c_name = c_name.replace("&", "_")
+    c_name = c_name.replace(".", "")
+    table_name = 'c_%s_%s'%(str(fortune_id), c_name) 
+    return table_name
+
+persona_db_sql_company_table_init = '''
+DROP TABLE IF EXISTS %s;
+CREATE TABLE IF NOT EXISTS %s (
+  fortune_id INTEGER NOT NULL,
+  user_id TEXT, 
+  tweet_id TEXT, 
+  sentiment TEXT, 
+  language TEXT, 
+  date TEXT, 
+  tweet TEXT
+);
+'''
+def persona_db_company_table_init(company_table_name):
+    sql = persona_db_sql_company_table_init % (company_table_name, company_table_name)
+    #print persona_db_sql_company_table_init
+    #print sql
+    c = conn_persona.cursor()
+    c.executescript(sql)
+    conn_persona.commit()
+    c.close()
+persona_db_sql_company_table_insert = '''
+INSERT INTO %s (fortune_id, user_id, tweet_id, sentiment, language, date, tweet) VALUES (?, ?, ?, ?, ?, ?, ?)
+'''
+#def personal_db_company_table_insert(company_table_name, fortune_id, user_id, tweet_id, sentiment, language, date, tweet):
+#    sql = persona_db_sql_company_table_insert % company_table_name
+#    c = conn.persona.cu
 
 def read_company_line(line):
     line = line.strip()
@@ -326,9 +360,37 @@ def read_company_line(line):
             words_search_keyword.append(word_sk)
             where_sql = where_sql+' OR '+str(where_column)+' LIKE \'%'+str(word_sk)+'%\' '
                 #print words_search_keyword
-    #print "reading company (%s): %s"%(str(company_f100_id), company_name)
+    print "reading company (%s): %s"%(str(company_f100_id), company_name)
     #print company_f100_id, company_name, where_sql, words_search_keyword
     return company_f100_id, company_name, where_sql, words_search_keyword
+
+def filter_company_without_date(fortune_id, company_name, where_sql):
+    company_table_name = company_table_name_get(fortune_id, company_name)
+    print 'company_table_name:%s'%company_table_name
+    persona_db_company_table_init(company_table_name)
+    sql = sql_filter_with_company_list_world_without_date % (' WHERE '+ where_sql)
+    sent_world_dict = sent_world_sql_query(sql)
+    #print sent_world_dict
+    keys = sent_world_dict.keys()
+    tweet_id_list = company_list_like(keys)
+    checkin_data_dict = checkin_data_sql_query(tweet_id_list)
+    sql_company_table_insert = persona_db_sql_company_table_insert % company_table_name
+    c = conn_persona.cursor()
+    for tweet_id in sent_world_dict:
+        d = sent_world_dict[tweet_id]
+        sent = d['sent'].strip()
+        tweet = d['tweet'].strip()
+        lang = d['lang'].strip()
+        if not checkin_data_dict.has_key(tweet_id):
+            u_id = 'not_appear'
+            date_txt = 'not_appear'
+        else:
+            u_id = checkin_data_dict[tweet_id]['u_id']
+            date_txt = checkin_data_dict[tweet_id]['date'].strip()
+        params = (fortune_id, u_id, tweet_id, sent, lang, date_txt, tweet)
+        #print params
+        c.execute(sql_company_table_insert, params)
+    c.close()
 
 def event_study_twitter():
     print 'event study start'
@@ -346,6 +408,7 @@ def event_study_twitter():
             #print line.strip()
             fortune_id, company_name, company_where_sql, company_search_keywords = read_company_line(line)
             personal_db_company_meta_insert(fortune_id, company_name, company_search_keywords, company_where_sql)
+            filter_company_without_date(fortune_id, company_name, company_where_sql)
     f_list.close()
 
 if __name__ == '__main__':
