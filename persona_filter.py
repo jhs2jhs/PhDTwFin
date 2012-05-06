@@ -607,6 +607,7 @@ def persona_db_unique_user_name_insert(user_id, user_name):
 def twitter_api_user_id_checkup(user_ids_100):
     host = 'https://api.twitter.com/1/users/lookup.json'
     data = urllib.urlencode({'user_id':user_ids_100})
+    #print data
     try:
         #print url
         req = urllib2.Request(host, data)
@@ -668,7 +669,11 @@ def persona_db_unique_user_name():
             user_ids_100 += ',%s'%user_id
             flag100 += 1
         #print len(results), user_ids_100
+        print user_ids_100
         content = twitter_api_user_id_checkup(user_ids_100)
+        if content == False:
+            flag100 = 0
+            continue
         #print content
         twitter_user_name_insert(content)
         flag100 = 0
