@@ -604,6 +604,7 @@ def persona_db_unique_user_name_insert(user_id, user_name):
     conn_persona.commit()
     c.close()
 
+'''
 def twitter_api_user_id_checkup(user_ids_100):
     host = 'https://api.twitter.com/1/users/lookup.json'
     data = urllib.urlencode({'user_id':user_ids_100})
@@ -623,6 +624,27 @@ def twitter_api_user_id_checkup(user_ids_100):
     except Exception as what:
         print "=== Exception: %s"%what
         return False
+'''
+import oauth2 as oauth
+consumer_token = 'xoxygrgP3ocua3xnsHHPyA'
+consumer_secret = 'pHZeJqvBodFVUzlfi24l0ujf22ksdjxiqVmKyT5H7ls'
+access_token = '56335495-tiFN5DB6RKMWCNvIIKiWmZJw5RrVmHXx94vFtouU'
+access_secret = '1UBErQ5YiVXNOJ2grLjfxGCgngdZTe4bVhwYDRqoY8'
+consumer = oauth.Consumer(consumer_token, consumer_secret)
+access = oauth.Token(access_token, access_secret)
+client = oauth.Client(consumer, access)
+def twitter_api_user_id_checkup(user_ids_100):
+    host = 'https://api.twitter.com/1/users/lookup.json'
+    data = urllib.urlencode({'user_id':user_ids_100})
+    url = '%s?%s'%(host, data)
+    resp, content = client.request(url, 'GET')
+    #print resp['status']
+    if resp['status'] == '200':
+        return content
+    #print content
+    print resp['status']
+    return False
+
 
 def twitter_user_name_insert(content):
     lists = json.loads(content)
