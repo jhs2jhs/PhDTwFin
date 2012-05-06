@@ -554,8 +554,21 @@ def twidder_id_to_name(url):
     #print content
     soup = BeautifulSoup(content)
     lists_names = soup.findAll('a')
-    print lists_names
+    if len(lists_names) != 3:
+        #raise Exception ('soup is not equal to 3:%s'%url)
+        print '***soup is not equal to 3:%s'%url
+        return False
+    user_name = lists_names[1].contents[0]
+    #print user_name
+    return user_name
                 
+def persona_db_unique_user_name_insert(user_id, user_name):
+    sql = 'UPDATE users SET user_name=? WHERE user_id=?'
+    params = (user_name, user_id,)
+    c = conn_persona.cursor()
+    c.execute(sql, params)
+    conn_persona.commit()
+    c.close()
 
 def persona_db_unique_user_name():
     c = conn_persona.cursor()
@@ -568,8 +581,12 @@ def persona_db_unique_user_name():
         #print user_id, type(user_id)
         url = 'http://id.twidder.info/cgi-bin/tw_un?UserID=%s'%user_id
         #print url
-        twidder_id_to_name(url)
-        break
+        user_name = twidder_id_to_name(url)
+        if user_name == False:
+            continue
+        persona_db_unique_user_name_insert(user_id, user_name)
+        #break
+        print 'user_id:%s, user_name:%s'%(user_id, user_name)
     c.close()
 
 if __name__ == '__main__':
