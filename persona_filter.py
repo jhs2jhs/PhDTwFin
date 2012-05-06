@@ -396,6 +396,7 @@ def filter_company_without_date(fortune_id, company_name, where_sql):
         params = (fortune_id, u_id, tweet_id, sent, lang, date_txt, tweet)
         #print params
         c.execute(sql_company_table_insert, params)
+        conn_persona.commit()
     c.close()
 
 def event_study_twitter_to_db():
