@@ -9,6 +9,7 @@ import httplib2
 import urllib
 from BeautifulSoup import Tag, NavigableString, BeautifulSoup
 import urllib2
+import json
 
 file_name = 'EventStudyTwitter20120422'
 persona_db = './persona/%s.db'%file_name
@@ -498,7 +499,8 @@ persona_db_sql_user_init = '''
 DROP TABLE IF EXISTS users;
 CREATE TABLE IF NOT EXISTS users (
   user_id TEXT UNIQUE NOT NULL,
-  user_name TEXT
+  user_name TEXT DEFAULT ('UN_KNOWN'), 
+  screen_name TEXT DEFAULT ('UN_KNOWN')
 );
 '''
 def persona_db_user_init():
@@ -553,7 +555,7 @@ def twidder_id_to_name(url):
     resp, content = http.request(url, 'GET')
     if resp['status'] != '200':
         raise Exception('response status error: %s'%resp['status'])
-    #print content
+    print content
     soup = BeautifulSoup(content)
     lists_names = soup.findAll('a')
     if len(lists_names) != 3:
@@ -563,6 +565,36 @@ def twidder_id_to_name(url):
     user_name = lists_names[1].contents[0]
     #print user_name
     return user_name
+
+def web_read_safe(url):
+    try:
+        web = urllib2.urlopen(url)
+        content = web.read()
+        return content
+    except urllib2.HTTPError as what:
+        print "=== urllib2.HTTPError: %s"%what
+        return False
+    except urllib2.URLError as what:
+        print "=== urllib2.URLError: %s"%what
+        return False
+    except Exception as what:
+        print "=== Exception: %s"%what
+        return False
+def twidder_id_to_name_thread_safe(url):
+    print url
+    content = web_read_safe(url)
+    if content == False:
+        return False
+    soup = BeautifulSoup(content)
+    lists_names = soup.findAll('a')
+    if len(lists_names) != 3:
+        #raise Exception ('soup is not equal to 3:%s'%url)
+        print '***soup is not equal to 3:%s'%url
+        return False
+    user_name = lists_names[1].contents[0]
+    #print user_name
+    return user_name
+    
                 
 def persona_db_unique_user_name_insert(user_id, user_name):
     sql = 'UPDATE users SET user_name=? WHERE user_id=?'
@@ -572,24 +604,85 @@ def persona_db_unique_user_name_insert(user_id, user_name):
     conn_persona.commit()
     c.close()
 
+def twitter_api_user_id_checkup(user_ids_100):
+    host = 'https://api.twitter.com/1/users/lookup.json'
+    data = urllib.urlencode({'user_id':user_ids_100})
+    try:
+        #print url
+        req = urllib2.Request(host, data)
+        web = urllib2.urlopen(req)
+        content = web.read()
+        return content
+    except urllib2.HTTPError as what:
+        print "=== urllib2.HTTPError: %s"%what
+        return False
+    except urllib2.URLError as what:
+        print "=== urllib2.URLError: %s"%what
+        return False
+    except Exception as what:
+        print "=== Exception: %s"%what
+        return False
+
+def twitter_user_name_insert(content):
+    lists = json.loads(content)
+    sql = 'UPDATE users SET user_name=?, screen_name=? WHERE user_id=?'
+    c = conn_persona.cursor()
+    #print lists
+    for l in lists:
+        # check all the return content
+        #print l
+        #for ls in l:
+        #    print ls, "===", l[ls]
+        screen_name = l['screen_name']
+        user_name = l['name']
+        user_id = l['id']
+        param = (user_name, screen_name, user_id)
+        c.execute(sql, param)
+        conn_persona.commit()
+    c.close()
+
 def persona_db_unique_user_name():
     c = conn_persona.cursor()
     sql = 'SELECT * FROM users'
     c.execute(sql)
     results = c.fetchall()
     #print len(results), results[0]
-    for result in results:
-        user_id = result[0]
-        #print user_id, type(user_id)
-        url = 'http://id.twidder.info/cgi-bin/tw_un?UserID=%s'%user_id
-        #print url
-        user_name = twidder_id_to_name(url)
-        if user_name == False:
-            user_name = 'not_found'
-        persona_db_unique_user_name_insert(user_id, user_name)
+    #print results, type(results)
+    #length = len(results)
+    flag100 = 0
+    flagend = True
+    while (len(results)>=100):
+        user_id = results.pop()[0]
+        user_ids_100 = '%s'%user_id
+        while flag100 < 99:
+            user_id = results.pop()[0]
+            #print user_id
+            user_ids_100 += ',%s'%user_id
+            flag100 += 1
+        #print len(results), user_ids_100
+        content = twitter_api_user_id_checkup(user_ids_100)
+        #print content
+        twitter_user_name_insert(content)
+        flag100 = 0
         #break
-        print 'user_id:%s, user_name:%s'%(user_id, user_name)
+        print 'user_list_length:%d'%(len(results))
+    while (len(results) >= 1):
+        user_id = results.pop()[0]
+            #print user_id
+        user_ids_100 += ',%s'%user_id
+        flag100 += 1
+        #print len(results), user_ids_100
+    content = twitter_api_user_id_checkup(user_ids_100)
+        #print content
+    twitter_user_name_insert(content)
+    flag100 = 0
+        #break
+    print 'user_list_length:%d'%(len(results))
+    #print results, len(results)
     c.close()
+
+#https://api.twitter.com/1/users/lookup.json?user_id=33046213,16350431
+
 
 if __name__ == '__main__':
     #event_study_twitter_to_db()
