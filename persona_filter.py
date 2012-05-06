@@ -643,18 +643,26 @@ def twitter_user_name_insert(content):
 
 def persona_db_unique_user_name():
     c = conn_persona.cursor()
-    sql = 'SELECT * FROM users'
+    sql = 'SELECT * FROM users WHERE user_name = "UN_KNOWN" or screen_name="UN_KNOWN"'
     c.execute(sql)
     results = c.fetchall()
     #print len(results), results[0]
     #print results, type(results)
     #length = len(results)
+    user_counts = 100
+    rate_limit = 150
+    times = 0 # chooose to run the steps
+    skips = 0
+    while skips < user_counts*rate_limit*times:
+        results.pop()
+        skips += 1
+    print "finish skips: %d"%(len(results))
     flag100 = 0
     flagend = True
-    while (len(results)>=100):
+    while (len(results)>=user_counts):
         user_id = results.pop()[0]
         user_ids_100 = '%s'%user_id
-        while flag100 < 99:
+        while flag100 < user_counts-1:
             user_id = results.pop()[0]
             #print user_id
             user_ids_100 += ',%s'%user_id
