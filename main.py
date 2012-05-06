@@ -24,7 +24,11 @@ def txtin():
 def filting():
     #persona.test()
     #persona.filter_with_company_list() # no user id and date
-    persona.filter_with_company_list_full()
+    #persona.filter_with_company_list_full()
+    persona.event_study_twitter_to_db()
+    persona.event_study_twitter_to_file_full()
+    persona.persona_db_unique_user_id()
+    persona.persona_db_unique_user_name()
 
 if __name__ == "__main__":
     print "main"

@@ -8,6 +8,7 @@ from dateutil.relativedelta import relativedelta
 import httplib2
 import urllib
 from BeautifulSoup import Tag, NavigableString, BeautifulSoup
+import urllib2
 
 file_name = 'EventStudyTwitter20120422'
 persona_db = './persona/%s.db'%file_name
@@ -584,7 +585,7 @@ def persona_db_unique_user_name():
         #print url
         user_name = twidder_id_to_name(url)
         if user_name == False:
-            continue
+            user_name = 'not_found'
         persona_db_unique_user_name_insert(user_id, user_name)
         #break
         print 'user_id:%s, user_name:%s'%(user_id, user_name)
