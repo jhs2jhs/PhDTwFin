@@ -615,9 +615,16 @@ def twitter_api_user_id_checkup(user_ids_100):
         web = urllib2.urlopen(req)
         content = web.read()
         return content
-    except urllib2.HTTPError as what:
-        print "=== urllib2.HTTPError: %s"%what
-        return False
+    except urllib2.HTTPError as  what:
+        if what.code == 404:
+            return '404'
+        else:
+            print "=== urllib2.HTTPError: %s"%what
+            return False
+        #print what.code, type(what), what.code==404
+        #raise Exception()
+        #print "=== urllib2.HTTPError: %s"%what
+        #return False
     except urllib2.URLError as what:
         print "=== urllib2.URLError: %s"%what
         return False
@@ -641,10 +648,28 @@ def twitter_api_user_id_checkup(user_ids_100):
     #print resp['status']
     if resp['status'] == '200':
         return content
+    if resp['status'] == '404':
+        return '404'
     #print content
     print resp['status']
     return False
 
+
+def twitter_user_name_insert_not_found(user_ids):
+    sql = 'UPDATE users SET user_name=?, screen_name=? WHERE user_id=?'
+    c = conn_persona.cursor()
+    #print lists
+    for user_id in user_ids:
+        # check all the return content
+        #print l
+        #for ls in l:
+        #    print ls, "===", l[ls]
+        screen_name = 'NOT_FOUND_IN_TWITTER'
+        user_name = 'NOT_FOUND_IN_TWITTER'
+        param = (user_name, screen_name, user_id)
+        c.execute(sql, param)
+        conn_persona.commit()
+    c.close()
 
 def twitter_user_name_insert(content):
     lists = json.loads(content)
@@ -672,27 +697,35 @@ def persona_db_unique_user_name():
     #print len(results), results[0]
     #print results, type(results)
     #length = len(results)
-    user_counts = 100
+    user_counts = 1
     rate_limit = 150
     times = 0 # chooose to run the steps
     skips = 0
     while skips < user_counts*rate_limit*times:
         results.pop()
         skips += 1
-    print "finish skips: %d"%(len(results))
+    print "finish skips and left: %d"%(len(results))
+    #print "left: %d"%len(results
     flag100 = 0
     flagend = True
     while (len(results)>=user_counts):
+        user_ids = []
         user_id = results.pop()[0]
+        user_ids.append(user_id)
         user_ids_100 = '%s'%user_id
         while flag100 < user_counts-1:
             user_id = results.pop()[0]
             #print user_id
             user_ids_100 += ',%s'%user_id
+            user_ids.append(user_id)
             flag100 += 1
         #print len(results), user_ids_100
         print user_ids_100
         content = twitter_api_user_id_checkup(user_ids_100)
+        if content == '404':
+            print "404 not find, the user id is not exist:%s"%user_ids_100
+            twitter_user_name_insert_not_found(user_ids)
+            continue
         if content == False:
             flag100 = 0
             continue
@@ -718,10 +751,59 @@ def persona_db_unique_user_name():
 
 #https://api.twitter.com/1/users/lookup.json?user_id=33046213,16350431
 
+def get_users_info_from_db(user_id):
+    sql = 'SELECT user_name, screen_name FROM users WHERE user_id=?'
+    c = conn_persona.cursor()
+    c.execute(sql, (user_id, ))
+    results = c.fetchall()
+    screen_name = ''
+    user_name = ''
+    for result in results:
+        screen_name = result[1]
+        user_name = result[0]
+    c.close()
+    return user_name, screen_name
+
+def persona_twitter_to_file_with_users(fortune_id, company_name, keywords):
+    company_table_name = company_table_name_get(fortune_id, company_name)
+    file_out = codecs.open('./persona/%s.txt'%company_table_name, 'w', encoding='utf-8')
+    file_out.write('%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\n'%('fortune_id', 'company_name', 'additiona_search_keywords', 'user_id', 'user_name', 'screen_name', 'tweet_id', 'sentiment', 'language', 'date', 'tweet'))
+    print company_table_name
+    sql = 'SELECT * FROM %s'%company_table_name
+    #print sql
+    c = conn_persona.cursor()
+    c.execute(sql)
+    results = c.fetchall()
+    for result in results:
+        user_id = result[1]
+        tweet_id = result[2]
+        sentiment = result[3]
+        language = result[4]
+        date = result[5]
+        tweet = result[6]
+        user_name, screen_name = get_users_info_from_db(user_id)
+        file_out.write('%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\n'%(fortune_id, company_name, str(keywords), user_id, user_name, screen_name, tweet_id, sentiment, language, date, tweet))
+    c.close()
+    file_out.close()
+
+def event_study_twitter_to_file_full_with_users():
+    c = conn_persona.cursor()
+    sql = 'SELECT * FROM persona_company'
+    c.execute(sql)
+    results = c.fetchall()
+    for result in results:
+        #print result
+        fortune_id = result[0]
+        company_name = result[1]
+        keywords = result[3]
+        #print fortune_id, company_name, keywords
+        persona_twitter_to_file_with_users(fortune_id, company_name, keywords)
+    c.close()
 
 if __name__ == '__main__':
     #event_study_twitter_to_db()
     #event_study_twitter_to_file_full()
     #persona_db_unique_user_id()
-    persona_db_unique_user_name()
+    #persona_db_unique_user_name()
+    event_study_twitter_to_file_full_with_users()
     
