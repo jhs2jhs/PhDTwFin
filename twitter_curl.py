@@ -2,6 +2,7 @@ import urllib2
 from BeautifulSoup import BeautifulSoup
 import sqlite3
 import json
+import codecs
 
 db_path = './tweets/tweet.db'
 conn = sqlite3.connect(db_path)
@@ -396,16 +397,47 @@ def twitter_api_read_main():
         print 'i:', i
     c.close()
 
+sql_status_get_all = '''
+SELECT * FROM tw_status
+'''
+def all_status_to_txt():
+    f = codecs.open('./tweets/twitter_status_all.txt', mode='w', encoding='utf-8')
+    f.write('twitter_id \ttweet \ttweet_id \tretweet_count \tfavorited_count \tretweet \thashtags \turls \tuser_mentions \treplay_to_status \treply_to_user \tgeo \tcoordinates \tplace\n')
+    c = conn.cursor()
+    c.execute(sql_status_get_all, ())
+    for raw in c.fetchall():
+        tid = raw[1]
+        tw_text = raw[2].strip().replace('\n', '').replace('\r', '')
+        reply_to_status = raw[4]
+        reply_to_user = raw[5]
+        geo = raw[7]
+        coordinates = raw[8]
+        place = raw[9]
+        retweet_count = raw[11]
+        favorited = raw[12]
+        retweet = raw[13]
+        hashtags = raw[16]
+        urls = raw[17]
+        user_mentions = raw[18]
+        tw_id = raw[19]
+        print tw_id, tw_text, tid, retweet_count, favorited, retweet, hashtags, urls, user_mentions, reply_to_status, reply_to_status, reply_to_user, geo, coordinates, place
+        f.write('%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n'%(tw_id, tw_text, tid, retweet_count, favorited, retweet, hashtags, urls, user_mentions, reply_to_status, reply_to_user, geo, coordinates, place))
+    c.close()
+    f.close()
+        
 
 if __name__ == "__main__":
     #twitter_id_to_screenname('15214291')
     #twitter_screenname_to_id('bittercoder')
     #twitter_id_match('./tweets/twitter-data v4-organisation.txt')
     #twitter_id_match('./tweets/twitter-data v4-analyst.txt')
+    #######
     db_init()
     tw_init('./tweets/twitter-data v4-organisation.txt.output.txt', tw_type_organisation)
     tw_init('./tweets/twitter-data v4-analyst.txt.output.txt', tw_type_analyst)
+    twitter_api_read_main()
+    #######
     #twitter_api_read('376193838')
     #tw_get_id_update('22811613', 90, 5)
-    twitter_api_read_main()
+    all_status_to_txt()
     
