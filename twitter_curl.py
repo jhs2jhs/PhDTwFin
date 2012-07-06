@@ -178,7 +178,7 @@ sql_get_update_min = '''
 UPDATE tw_get SET min_id = ?, min_time = (DATETIME('now')) WHERE tw_id = ?
 '''
 sql_get_update_min_finish = '''
-UPDATE tw_get SET min_finish = 1 WHERE tw_id = ?
+UPDATE tw_get SET min_finish = ? WHERE tw_id = ?
 '''
 def db_get_update(type, tw_id, id):
     c = conn.cursor()
@@ -187,7 +187,8 @@ def db_get_update(type, tw_id, id):
     if type == 'min':
         c.execute(sql_get_update_min, (id, tw_id))
     if type == 'min_finish':
-        c.execute(sql_get_update_min_finish, (tw_id, ))
+        #print "==min_finish:", id, tw_id
+        c.execute(sql_get_update_min_finish, (id, tw_id))
     conn.commit()
     c.close()
 
@@ -196,16 +197,17 @@ INSERT OR IGNORE INTO tw_status (tid, tw_text, source, reply_to_status, reply_to
 '''
 def db_status_insert(tid, tw_text, source, reply_to_status, reply_to_user, reply_to_username, geo, coordinates, place, contributors, retweet_count, favorited, retweeted, possibly_sensitive, retweet_status_id, hashtags, urls, user_mentions, tw_id):
     c = conn.cursor()
+    #print tid, tw_text, source, reply_to_status, reply_to_user, reply_to_username, geo, coordinates, place, contributors, retweet_count, favorited, retweeted, possibly_sensitive, retweet_status_id, hashtags, urls, user_mentions, tw_id
     c.execute(sql_status_insert, (tid, tw_text, source, reply_to_status, reply_to_user, reply_to_username, geo, coordinates, place, contributors, retweet_count, favorited, retweeted, possibly_sensitive, retweet_status_id, hashtags, urls, user_mentions, tw_id))
     conn.commit()
     c.close()
 
 
-def twitter_response_parse(html):
+def twitter_response_parse(html, tw_id):
     js = json.loads(html)
     max_id = 0
     min_id = 0
-    tw_id = 0
+    #tw_id = 0
     i = 0
     for j in js:
         created_at = j['created_at']
@@ -216,8 +218,11 @@ def twitter_response_parse(html):
         reply_to_user = j['in_reply_to_user_id']
         reply_to_username = j['in_reply_to_screen_name']
         geo = j['geo']
+        geo = json.dumps(geo)
         coordinates = j['coordinates']
+        coordinates = json.dumps(coordinates)
         place = j['place']
+        place = json.dumps(place)
         contributors = j['contributors']
         retweet_count = j['retweet_count']
         favorited = j['favorited']
@@ -240,7 +245,7 @@ def twitter_response_parse(html):
         user_mentions = json.dumps(user_mentions)
         # user
         user = j['user']
-        tw_id = user['id']
+        #tw_id = user['id']
         tw_name= user['name']
         tw_screenname = user['screen_name']
         tw_location = user['location']
@@ -265,10 +270,13 @@ def twitter_response_parse(html):
             min_id = tid
         #print created_at, tw_name
         #tw_id = tid
-    print tw_id
+    print 'twitter_response_parse', tw_id
     if tw_id != 0:
         tw_get_id_update(tw_id, max_id, min_id)
         tw_get_min_finish_check(tw_id)
+    print "tweet len:", len(js)
+    if len(js) < 199:
+        db_get_update('min_finish', tw_id, 1)
 
 sql_user_status_get = '''
 SELECT tw_status FROM tw_user WHERE tw_id = ?
@@ -289,7 +297,7 @@ def tw_get_min_finish_check(tw_id):
     if status_count == None:
         status_count = '0'
     if int(status_user) <= int(status_count):
-        db_get_update('min_finish', tw_id, 0)
+        db_get_update('min_finish', tw_id, 1)
     c.close()
     
 sql_get_get = '''
@@ -318,14 +326,17 @@ def tw_get_id_update(tw_id, max_id, min_id):
 def twitter_api_read(url, tw_id, loop_type):
     print "========"+tw_id+"========"
     try:
-        html = web_openner.open(url).read()
+        read = web_openner.open(url)
+        html = read.read()
     # ready to parse error 
-        twitter_response_parse(html)
+        twitter_response_parse(html, tw_id)
         if loop_type == 'min': ######### if only cover min at moment
             twitter_read_loop_min(tw_id)
     except urllib2.HTTPError, e:
         print "HttpError:"+tw_id, 
         print e.code, e
+        if e.code == 401 or e.code == '401':
+            db_get_update('min_finish', tw_id, 401)
     except urllib2.URLError, e:
         print "URLError:"+tw_id
         print e.reason, e
@@ -344,6 +355,7 @@ def twitter_read_loop_min(tw_id):
     c.execute(sql_get_min_finish_get, (tw_id, ))
     raw = c.fetchone()
     min_finish = raw[0]
+    print 'twitter_read_loop_min min_finish:', min_finish
     if min_finish == 0:
         c.execute(sql_get_min_get, (tw_id, ))
         raw = c.fetchone()
@@ -353,12 +365,12 @@ def twitter_read_loop_min(tw_id):
     c.close()
 
 def twitter_read(tw_id):
-    print "**"+tw_id
     c = conn.cursor()
     c.execute(sql_get_min_get, (tw_id, ))
     raw = c.fetchone()
     min_id = raw[0]
     ########### better to check whether it should loop from max or min
+    #print "twitter_read:", tw_id, min_id, type(min_id)
     #print min_id, type(min_id)
     if min_id == None:
         url = 'https://api.twitter.com/1/statuses/user_timeline.json?include_entities=true&include_rts=true&user_id=%s&count=199'%tw_id
@@ -378,10 +390,10 @@ def twitter_api_read_main():
         #    continue
         tw_id = raw[0]
         twitter_read(tw_id)
-        #if i == 100:
-        #    break
-        #i = i+1
-        print i
+        #if i == 3:
+            #break
+        i = i+1
+        print 'i:', i
     c.close()
 
 
