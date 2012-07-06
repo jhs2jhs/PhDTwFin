@@ -13,3 +13,4 @@ db_util.pyc
 
 *.xlsx
 test/*
+*.xlsb
