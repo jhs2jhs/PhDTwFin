@@ -3,6 +3,7 @@ from BeautifulSoup import BeautifulSoup
 import sqlite3
 import json
 import codecs
+import time
 
 db_path = './tweets/tweet.db'
 conn = sqlite3.connect(db_path)
@@ -116,8 +117,83 @@ CREATE TABLE IF NOT EXISTS tw_status (
   user_mentions TEXT,
 ----
   tw_id TEXT, 
+  tw_create_at TEXT, 
   create_time TIMESTAMP DEFAULT (DATETIME('now')),
   FOREIGN KEY (tw_id) REFERENCES tw(tw_id)
+);
+-----------
+CREATE TABLE IF NOT EXISTS klout_user (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  klout_id TEXT UNIQUE NOT NULL,
+  klout_name TEXT,
+  klout_score TEXT
+);
+CREATE TABLE IF NOT EXISTS klout_twitter (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tw_id TEXT UNIQUE NOT NULL,
+  klout_id TEXT DEFAULT 0, 
+  code TEXT DEFAULT 0,
+  FOREIGN KEY (tw_id) REFERENCES tw(tw_id)
+  ----FOREIGN KEY (klout_id) REFERENCES klout(klout_id)
+);
+CREATE TABLE IF NOT EXISTS klout_score (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  klout_id TEXT, 
+  klout_score TEXT, 
+  klout_scoredelta TEXT, 
+  create_date TEXT DEFAULT (date('now')) UNIQUE NOT NULL,
+  FOREIGN KEY (klout_id) REFERENCES klout_user(klout_id)
+);
+CREATE TABLE IF NOT EXISTS klout_influence (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  klout_id TEXT, 
+  influence_klout_id TEXT, 
+  create_date TEXT DEFAULT (date('now')) NOT NULL,
+  type TEXT,
+  FOREIGN KEY (klout_id) REFERENCES klout_user(klout_id),
+  FOREIGN KEY (influence_klout_id) REFERENCES klout_user(klout_id),
+  UNIQUE (klout_id, influence_klout_id, create_date, type)
+);
+CREATE TABLE IF NOT EXISTS klout_influence_count (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  klout_id TEXT UNIQUE NOT NULL,
+  influencer_count TEXT DEFAULT 0,
+  influencee_count TEXT DEFAULT 0,
+  FOREIGN KEY (klout_id) REFERENCES klout_user(klout_id)
+);
+CREATE TABLE IF NOT EXISTS klout_topic (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  topic_id TEXT UNIQUE NOT NULL, 
+  topic_displayname TEXT, 
+  topic_name TEXT
+);
+CREATE TABLE IF NOT EXISTS klout_topic_user (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  topic_id TEXT, 
+  klout_id TEXT, 
+  FOREIGN KEY (topic_id) REFERENCES klout_topic(topic_id),
+  FOREIGN KEY (klout_id) REFERENCES klout_user(klout_id),
+  UNIQUE (topic_id, klout_id)
+);
+CREATE TABLE IF NOT EXISTS trstrank (
+  tw_id TEXT UNIQUE NOT NULL,
+  tq TEXT, 
+  trstrank TEXT, 
+  code TEXT DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS influence_metrics (
+  tw_id TEXT UNIQUE NOT NULL, 
+  at_trstrank TEXT, 
+  chattness TEXT, 
+  enthusiasm TEXT, 
+  feedness TEXT, 
+  fo_trstrank TEXT, 
+  follow_rate TEXT, 
+  influx TEXT, 
+  interesting TEXT, 
+  outflux TEXT, 
+  sway TEXT, 
+  code TEXT DEFAULT 0
 );
 '''
 
@@ -194,12 +270,12 @@ def db_get_update(type, tw_id, id):
     c.close()
 
 sql_status_insert = '''
-INSERT OR IGNORE INTO tw_status (tid, tw_text, source, reply_to_status, reply_to_user, reply_to_username, geo, coordinates, place, contributors, retweet_count, favorited, retweeted, possibly_sensitive, retweet_status_id, hashtags, urls, user_mentions, tw_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+INSERT OR IGNORE INTO tw_status (tid, tw_text, tw_create_at, source, reply_to_status, reply_to_user, reply_to_username, geo, coordinates, place, contributors, retweet_count, favorited, retweeted, possibly_sensitive, retweet_status_id, hashtags, urls, user_mentions, tw_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 '''
-def db_status_insert(tid, tw_text, source, reply_to_status, reply_to_user, reply_to_username, geo, coordinates, place, contributors, retweet_count, favorited, retweeted, possibly_sensitive, retweet_status_id, hashtags, urls, user_mentions, tw_id):
+def db_status_insert(tid, tw_text, tw_create_at, source, reply_to_status, reply_to_user, reply_to_username, geo, coordinates, place, contributors, retweet_count, favorited, retweeted, possibly_sensitive, retweet_status_id, hashtags, urls, user_mentions, tw_id):
     c = conn.cursor()
     #print tid, tw_text, source, reply_to_status, reply_to_user, reply_to_username, geo, coordinates, place, contributors, retweet_count, favorited, retweeted, possibly_sensitive, retweet_status_id, hashtags, urls, user_mentions, tw_id
-    c.execute(sql_status_insert, (tid, tw_text, source, reply_to_status, reply_to_user, reply_to_username, geo, coordinates, place, contributors, retweet_count, favorited, retweeted, possibly_sensitive, retweet_status_id, hashtags, urls, user_mentions, tw_id))
+    c.execute(sql_status_insert, (tid, tw_text, tw_create_at, source, reply_to_status, reply_to_user, reply_to_username, geo, coordinates, place, contributors, retweet_count, favorited, retweeted, possibly_sensitive, retweet_status_id, hashtags, urls, user_mentions, tw_id))
     conn.commit()
     c.close()
 
@@ -211,7 +287,7 @@ def twitter_response_parse(html, tw_id):
     #tw_id = 0
     i = 0
     for j in js:
-        created_at = j['created_at']
+        tw_created_at = j['created_at']
         tid = j['id']
         tw_text = j['text'] ##
         source = j['source']
@@ -258,7 +334,7 @@ def twitter_response_parse(html, tw_id):
         tw_created_at = user['created_at']
         tw_status = user['statuses_count']
         #
-        db_status_insert(tid, tw_text, source, reply_to_status, reply_to_user, reply_to_username, geo, coordinates, place, contributors, retweet_count, favorited, retweeted, possibly_sensitive, retweet_status_id, hashtags, urls, user_mentions, tw_id)
+        db_status_insert(tid, tw_text, tw_created_at, source, reply_to_status, reply_to_user, reply_to_username, geo, coordinates, place, contributors, retweet_count, favorited, retweeted, possibly_sensitive, retweet_status_id, hashtags, urls, user_mentions, tw_id)
         db_user_update(tw_name, tw_screenname, tw_location, tw_desc, tw_url, tw_followers, tw_friends, tw_listed, tw_created_at, tw_status, tw_id)
         #
         if i == 0:
@@ -402,7 +478,7 @@ SELECT * FROM tw_status
 '''
 def all_status_to_txt():
     f = codecs.open('./tweets/twitter_status_all.txt', mode='w', encoding='utf-8')
-    f.write('twitter_id \ttweet \ttweet_id \tretweet_count \tfavorited_count \tretweet \thashtags \turls \tuser_mentions \treplay_to_status \treply_to_user \tgeo \tcoordinates \tplace\n')
+    f.write('twitter_id \ttweet \ttweet_id \ttweet_create_at \tretweet_count \tfavorited_count \tretweet \thashtags \turls \tuser_mentions \treplay_to_status \treply_to_user \tgeo \tcoordinates \tplace\n')
     c = conn.cursor()
     c.execute(sql_status_get_all, ())
     for raw in c.fetchall():
@@ -420,11 +496,381 @@ def all_status_to_txt():
         urls = raw[17]
         user_mentions = raw[18]
         tw_id = raw[19]
-        print tw_id, tw_text, tid, retweet_count, favorited, retweet, hashtags, urls, user_mentions, reply_to_status, reply_to_status, reply_to_user, geo, coordinates, place
-        f.write('%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n'%(tw_id, tw_text, tid, retweet_count, favorited, retweet, hashtags, urls, user_mentions, reply_to_status, reply_to_user, geo, coordinates, place))
+        tw_create_at = raw[20]
+        print tw_id, tw_text, tid, tw_create_at, retweet_count, favorited, retweet, hashtags, urls, user_mentions, reply_to_status, reply_to_status, reply_to_user, geo, coordinates, place
+        f.write('%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n'%(tw_id, tw_text, tid, tw_create_at, retweet_count, favorited, retweet, hashtags, urls, user_mentions, reply_to_status, reply_to_user, geo, coordinates, place))
     c.close()
     f.close()
-        
+
+
+sql_klout_twitter_insert = '''
+INSERT OR IGNORE INTO klout_twitter (tw_id) VALUES (?)
+'''
+sql_klout_twitter_code_get = '''
+SELECT code FROM klout_twitter WHERE tw_id = ?
+'''
+sql_user_all_get = '''
+SELECT * FROM tw_user
+'''
+def klout_user_list():
+    c = conn.cursor()
+    c.execute(sql_user_all_get, ())
+    for raw in c.fetchall():
+        tw_id = raw[0]
+        tw_name = raw[1]
+        ##
+        kwc = conn.cursor()
+        kwc.execute(sql_klout_twitter_insert, (tw_id, ))
+        conn.commit()
+        kwc.close()
+        ##
+        ccode = conn.cursor()
+        ccode.execute(sql_klout_twitter_code_get, (tw_id, ))
+        code = ccode.fetchone()[0]
+        if code == 0 or code == '0':
+            print "==TW:", tw_id, tw_name
+            kloutid = get_kloutid(tw_id)
+            time.sleep(1)
+        ccode.close()
+        ##
+    c.close()
+
+sql_klout_user_insert = '''
+INSERT OR IGNORE INTO klout_user (klout_id, klout_name, klout_score) VALUES (?, ?, ?)
+'''
+sql_klout_influence_count_insert = '''
+INSERT OR IGNORE INTO klout_influence_count (klout_id) VALUES (?)
+'''
+sql_klout_twitter_user_update = '''
+UPDATE klout_twitter SET klout_id = ? WHERE tw_id = ?
+'''
+sql_klout_twitter_code_update = '''
+UPDATE klout_twitter SET code = ? WHERE tw_id = ?
+'''
+def get_kloutid(tw_id):
+    url = 'http://api.klout.com/v2/identity.json/tw/%s?key=u9cvz5rjmrmskzm6gmsnk9ps'%tw_id
+    #print url
+    try:
+        web = web_openner.open(url).read()
+        js = json.loads(web)
+        if js.has_key('id'):
+            kloutid = js['id']
+            ###
+            c = conn.cursor()
+            c.execute(sql_klout_user_insert, (kloutid, '', ''))
+            c.execute(sql_klout_influence_count_insert, (kloutid, ))
+            c.execute(sql_klout_twitter_user_update, (kloutid, tw_id))
+            conn.commit()
+            c.close()
+            ###
+            #kloutid = '635263'
+            print "kloutid:", kloutid
+            time.sleep(1)
+            klout_score(kloutid)
+            time.sleep(1)
+            klout_influence(kloutid)
+            time.sleep(1)
+            klout_topic(kloutid)
+            time.sleep(1)
+            c = conn.cursor()
+            c.execute(sql_klout_twitter_code_update, (1, tw_id))
+            conn.commit()
+            c.close()
+            return kloutid
+    except urllib2.HTTPError, e:
+        if e.code == 404: ## Not Found
+            print e
+            c = conn.cursor()
+            c.execute(sql_klout_twitter_code_update, (e.code, tw_id))
+            conn.commit()
+            c.close()
+        return None
+
+sql_klout_name_update = '''
+UPDATE klout_user SET klout_name = ?, klout_score = ? WHERE klout_id = ?
+'''
+sql_klout_score_insert = '''
+INSERT OR REPLACE INTO klout_score (klout_id, klout_score, klout_scoredelta, create_date) VALUES (?,?,?, date('now'))
+'''
+def klout_score(kloutid):
+    c = conn.cursor()
+    url = 'http://api.klout.com/v2/user.json/%s?key=u9cvz5rjmrmskzm6gmsnk9ps'%kloutid
+    try:
+        web = web_openner.open(url).read()
+        js = json.loads(web)
+        if js == None:
+            return 
+        if js.has_key('nick'):
+            klout_name = js['nick']
+        else:
+            klout_name = None
+        if js.has_key('score') and js['score'].has_key('score'):
+            score = js['score']['score']
+        else:
+            score = None
+        if js.has_key('scoreDelta'):
+            scoreDelta = js['scoreDelta']
+            scoreDelta = json.dumps(scoreDelta)
+        else:
+            scoreDelta = None
+        c.execute(sql_klout_name_update, (klout_name, score, kloutid))
+        conn.commit()
+        c.execute(sql_klout_score_insert, (kloutid, score, scoreDelta))
+        conn.commit()
+        print "score:", klout_name, score, scoreDelta
+        #DB
+    except urllib2.HTTPError, e:
+        print e
+    c.close()
+
+sql_klout_influence_insert = '''
+INSERT OR REPLACE INTO klout_influence (klout_id, influence_klout_id, create_date, type) VALUES (?, ?, date('now'), ?)
+'''
+sql_klout_influencer_count_update = '''
+UPDATE klout_influence_count SET influencer_count = ? WHERE klout_id = ?
+'''
+sql_klout_influencee_count_update = '''
+UPDATE klout_influence_count SET influencee_count = ? WHERE klout_id = ?
+'''
+def klout_influence(kloutid):
+    c = conn.cursor()
+    url = 'http://api.klout.com/v2/user.json/%s/influence?key=u9cvz5rjmrmskzm6gmsnk9ps'%kloutid
+    try:
+        web = web_openner.open(url).read()
+        js = json.loads(web)
+        if js.has_key('myInfluencers'):
+            influencers = js['myInfluencers']
+            for influencer in influencers:
+                influencer_id = influencer['entity']['id']
+                influencer_score = influencer['entity']['payload']['score']['score']
+                influencer_name = influencer['entity']['payload']['nick']
+                c.execute(sql_klout_user_insert, (influencer_id, influencer_name, influencer_score))
+                conn.commit()
+                c.execute(sql_klout_score_insert, (influencer_id, influencer_score, ''))
+                conn.commit()
+                c.execute(sql_klout_influence_insert, (kloutid, influencer_id, 'influencer'))
+                conn.commit()
+                print 'influencer:', influencer_id, influencer_score
+        if js.has_key('myInfluencees'):
+            influencees = js['myInfluencees']
+            for influencee in influencees:
+                influencee_id = influencee['entity']['id']
+                influencee_score = influencee['entity']['payload']['score']['score']
+                influencee_name = influencee['entity']['payload']['nick']
+                c.execute(sql_klout_user_insert, (influencee_id, influencee_name, influencee_score))
+                conn.commit()
+                c.execute(sql_klout_score_insert, (influencee_id, influencee_score, ''))
+                conn.commit()
+                c.execute(sql_klout_influence_insert, (kloutid, influencee_id, 'influencee'))
+                conn.commit()
+                print 'influencee:', influencee_id, influencee_score
+        if js.has_key('myInfluencersCount'):
+            influencersCount = js['myInfluencersCount']
+            c.execute(sql_klout_influencer_count_update, (influencersCount, kloutid))
+            conn.commit()
+            print 'influencerCount', influencersCount
+        if js.has_key('myInfluenceesCount'):
+            influenceesCount = js['myInfluenceesCount']
+            c.execute(sql_klout_influencee_count_update, (influenceesCount, kloutid))
+            conn.commit()
+            print 'influenceeCount', influenceesCount
+        #DB
+    except urllib2.HTTPError, e:
+        print e
+    c.close()
+sql_klout_topic_insert = '''
+INSERT OR IGNORE INTO klout_topic (topic_id, topic_displayname, topic_name) VALUES (?, ?, ?)
+'''
+sql_klout_topic_user_insert = '''
+INSERT OR IGNORE INTO klout_topic_user (topic_id, klout_id) VALUES (?, ?)
+'''
+def klout_topic(kloutid):
+    url = 'http://api.klout.com/v2/user.json/%s/topics?key=u9cvz5rjmrmskzm6gmsnk9ps'%kloutid
+    try:
+        web = web_openner.open(url).read()
+        js = json.loads(web)
+        #print js
+        for topic in js:
+            topic_id = topic['id']
+            topic_displayname = topic['displayName']
+            topic_name = topic['name']
+            c = conn.cursor()
+            c.execute(sql_klout_topic_insert, (topic_id, topic_displayname, topic_name))
+            conn.commit()
+            c.execute(sql_klout_topic_user_insert, (topic_id, kloutid))
+            conn.commit()
+            c.close()
+            print 'topic:', topic_id, topic_displayname, topic_name
+        #DB
+    except urllib2.HTTPError, e:
+        print e
+
+
+def infochimps_user_list():
+    c = conn.cursor()
+    c.execute(sql_user_all_get, ())
+    for raw in c.fetchall():
+        tw_id = raw[0]
+        tw_name = raw[1]
+        ##
+        print "==TW infochimps:", tw_id, tw_name
+        get_trstrank(tw_id)
+        get_influence_metrics(tw_id)
+        time.sleep(1)
+        ##
+    c.close()
+
+sql_trstrank_insert = '''
+INSERT OR REPLACE INTO trstrank (tw_id, tq, trstrank) VALUES (?, ?, ?)
+'''
+def get_trstrank(tw_id):
+    url = 'http://api.infochimps.com/social/network/tw/influence/trstrank?apikey=JianhuaShao-ZzyM911GAwNzJ1F7BEoz1ZGqw69&user_id=%s'%tw_id
+    try:
+        web = web_openner.open(url).read()
+        js = json.loads(web)
+        #print js
+        if js == None:
+            return
+        if js.has_key('tq'):
+            tq = js['tq']
+        else:
+            tq = None
+        if js.has_key('trstrank'):
+            trstrank = js['trstrank']
+        else:
+            trstrank = None
+        c = conn.cursor()
+        #print tq, trstrank
+        c.execute(sql_trstrank_insert, (tw_id, tq, trstrank))
+        conn.commit()
+        c.close()
+        print "trsttrank", trstrank
+    except urllib2.HTTPError, e:
+        print e
+
+
+sql_influence_metrics_insert = '''
+INSERT OR REPLACE INTO influence_metrics (tw_id, at_trstrank, chattness, enthusiasm, feedness, fo_trstrank, follow_rate, influx, interesting, outflux, sway) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+'''
+def get_influence_metrics(tw_id):
+    url = 'http://api.infochimps.com/social/network/tw/influence/metrics?apikey=JianhuaShao-ZzyM911GAwNzJ1F7BEoz1ZGqw69&user_id=%s'%tw_id
+    try:
+        web = web_openner.open(url).read()
+        js = json.loads(web)
+        if js == None:
+            return
+        at_trstrank = None
+        chattness = None
+        enthusiasm = None
+        feedness = None
+        fo_trstrank = None
+        follow_rate = None
+        influx = None
+        interesting = None
+        outflux = None
+        sway = None
+        #print js
+        if js.has_key('at_trstrank'):
+            at_trstrank = js['at_trstrank']
+        if js.has_key('chattness'):
+            chattness = js['chattness']
+        if js.has_key('enthusiasm'):
+            enthusiasm = js['enthusiasm']
+        if js.has_key('feedness'):
+            feedness = js['feedness']
+        if js.has_key('fo_trstrank'):
+            fo_trstrank  = js['fo_trstrank']
+        if js.has_key('follow_churn'):
+            follow_churn = js['follow_churn']
+        if js.has_key('follow_rate'):
+            follow_rate = js['follow_rate']
+        if js.has_key('influx'):
+            influx = js['influx']
+        if js.has_key('interesting'):
+            interesting = js['interesting']
+        if js.has_key('outflux'):
+            outflux = js['outflux']
+        if js.has_key('sway'):
+            sway = js['sway']
+        c = conn.cursor()
+        #print tw_id, at_trstrank, chattness, enthusiasm, feedness, fo_trstrank, follow_rate, influx, interesting, outflux, sway
+        c.execute(sql_influence_metrics_insert, (tw_id, at_trstrank, chattness, enthusiasm, feedness, fo_trstrank, follow_rate, influx, interesting, outflux, sway))
+        conn.commit()
+        c.close()
+        print "influence:", at_trstrank
+    except urllib2.HTTPError, e:
+        print e
+
+sql_trstrank_all_get = '''
+SELECT * FROM trstrank
+'''
+sql_influence_all_get = '''
+SELECT * FROM influence_metrics
+'''
+def infochimps_output():
+    f = open('./tweets/infochimps_trstrank.txt', 'w')
+    f.write('twitter_id \ttq \ttrstrank\n')
+    c = conn.cursor()
+    c.execute(sql_trstrank_all_get, ())
+    for raw in c.fetchall():
+        f.write('%s\t%s\t%s\n'%(raw[0], raw[1], raw[2]))
+    c.close()
+    f.close()
+    ######
+    f = open('./tweets/infochimps_influence.txt', 'w')
+    f.write('twitter_id \tat_trstrank \tchattness, \tenthusiasm, \tfeedness, \tfo_trstrank, \tfollow_rate, \tinflux, \tinteresting, \toutflux, \tsway')
+    c = conn.cursor()
+    c.execute(sql_influence_all_get, ())
+    for raw in c.fetchall():
+        f.write('%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n'%(raw[0], raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[7], raw[8], raw[9], raw[10]))
+    c.close()
+    f.close()
+
+sql_klout_output_all_get = '''
+SELECT 
+  klout_twitter.tw_id, 
+  klout_user.klout_id, 
+  klout_user.klout_name, 
+  klout_user.klout_score, 
+  klout_influence_count.influencer_count, 
+  klout_influence_count.influencee_count
+FROM klout_user, klout_twitter, klout_influence_count
+WHERE 
+  klout_twitter.klout_id = klout_user.klout_id AND 
+  klout_twitter.klout_id = klout_influence_count.klout_id 
+''' 
+sql_klout_topic_all_get = '''
+SELECT 
+  klout_twitter.tw_id,
+  klout_twitter.klout_id, 
+  klout_topic.topic_id, 
+  klout_topic.topic_displayname, 
+  klout_topic.topic_name
+FROM klout_twitter, klout_topic, klout_topic_user
+WHERE 
+  klout_twitter.klout_id = klout_topic_user.klout_id AND 
+  klout_topic_user.topic_id = klout_topic.topic_id
+'''
+def klout_output():
+    f = open('./tweets/klout_general.txt', 'w')
+    f.write('twitter_id \tklout_id \tklout_name \tklout_score \tklout_influencer_count \tklout_influencee_count\n')
+    c = conn.cursor()
+    c.execute(sql_klout_output_all_get, ())
+    for raw in c.fetchall():
+        f.write('%s\t%s\t%s\t%s\t%s\t%s\n'%(raw[0], raw[1], raw[2], raw[3], raw[4], raw[5]))
+    c.close()
+    f.close()
+    ######
+    f = open('./tweets/klout_topic.txt', 'w')
+    f.write('twitter_id \tklout_id \ttopic_id \ttopic_displayname \tktopic_name\n')
+    c = conn.cursor()
+    c.execute(sql_klout_topic_all_get, ())
+    for raw in c.fetchall():
+        f.write('%s\t%s\t%s\t%s\t%s\n'%(raw[0], raw[1], raw[2], raw[3], raw[4]))
+    c.close()
+    f.close()
+    
+
 
 if __name__ == "__main__":
     #twitter_id_to_screenname('15214291')
@@ -439,5 +885,13 @@ if __name__ == "__main__":
     #######
     #twitter_api_read('376193838')
     #tw_get_id_update('22811613', 90, 5)
+    ########
     all_status_to_txt()
+    ######
+    #klout_user_list()
+    #get_kloutid('56335495')
+    #####
+    infochimps_user_list()
+    #infochimps_output()
+    klout_output()
     
