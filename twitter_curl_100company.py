@@ -11,264 +11,16 @@ from lxml import etree
 from lxml.etree import tostring
 
 
-db_path = './tweets/tweet_twibes.db'
+db_path = './tweets/tweet_100company.db'
 conn = sqlite3.connect(db_path)
 
 web_openner = urllib2.build_opener(urllib2.HTTPHandler)
-twidder_url = 'http://id.twidder.info/cgi-bin'
-
-host = 'www.twibes.com'
-url = '/finance/twitter-list'
-port = 80
-strict = 1
-timeout = 10
-source_address = None # not used at moment
-headers = {
-    #"Host":"www.amazon.com", 
-    "Connection":"keep-alive",
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_4) AppleWebKit/536.5 (KHTML, like Gecko) Chrome/19.0.1084.52 Safari/536.5",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    #"Accept-Encoding": "gzip,deflate,sdch",
-    "Accept-Language": "en-US,en;q=0.8",
-    "Accept-Charset": "ISO-8859-1,utf-8;q=0.7,*;q=0.3",
-    }
-
-def get_conn_http():
-    conn_http = httplib.HTTPConnection(host=host, port=port, strict=strict, timeout=timeout, source_address=source_address)
-    return conn_http
-
-conn_http = get_conn_http()
-
-def use_httplib(url, headers):
-    global conn_http
-    try:
-        if conn_http == None:
-            print conn_http, type(conn_http)
-            conn_http = get_conn_http()
-        conn_http.request(method='GET', url=url, headers=headers)
-        #print '**ready'
-        status, body = use_httplib_resp(conn_http)
-        return status, body
-    except Exception as e:
-        print '####exception', e, type(conn_http), conn_http
-        conn_http.close()
-        conn_http = None
-        return -1, e
-
-def use_httplib_redirect(host, url, headers):
-    print host, url, "======= redirect ========"
-    try:
-        conn_c = httplib.HTTPConnection(host=host, port=80)
-        conn_c.request(method="GET", url=url, headers=headers)
-        status, body = use_httplib_resp(conn)
-        conn_c.close()
-        return status, body
-    except Exception as e:
-        print 'exception', e
-        return -1, e
-
-def use_httplib_resp(conn):
-    resp = conn.getresponse()
-    #print "*//togo"
-    status_resp = resp.status
-    reason_resp = resp.reason
-    headers_resp = resp.getheaders() 
-    #print headers_resp
-    if 300 <= status_resp < 400 : # redirect
-        location = resp.getheader('Location')
-        parsed = urlparse.urlparse(location)
-        host_r = parsed.netloc
-        url_r = parsed.path
-        if location != None: # return None if it is not exist
-            return use_httplib_redirect(host_r, url_r, headers)
-        else:
-            return status_resp, 'Location is None:'
-    msg_resp = resp.msg
-    body_resp = resp.read()
-    v_resp = resp.version
-    return status_resp, body_resp
-
-
-def body_clean(body):
-    cleaner = Cleaner(style=True, javascript=True, page_structure=True)
-    body = cleaner.clean_html(body)
-    parser = etree.HTMLParser(remove_blank_text=True, remove_comments=True)
-    html = lxml.html.fromstring(body, parser=parser)
-    return html
-
-def get_klout_score_short(kloutid):
-    url = 'http://api.klout.com/v2/user.json/%s?key=u9cvz5rjmrmskzm6gmsnk9ps'%kloutid
-    try:
-        web = web_openner.open(url).read()
-        js = json.loads(web)
-        if js == None:
-            return None
-        if js.has_key('score') and js['score'].has_key('score'):
-            score = js['score']['score']
-        else:
-            score = None
-        return score
-    except urllib2.HTTPError, e:
-        print e
-        return None
-
-def get_kloutid_short(tw_id):
-    url = 'http://api.klout.com/v2/identity.json/twitter?screenName=%s&key=u9cvz5rjmrmskzm6gmsnk9ps'%tw_id
-    #print url
-    try:
-        web = web_openner.open(url).read()
-        js = json.loads(web)
-        if js.has_key('id'):
-            kloutid = js['id']
-            #kloutid = '635263'
-            time.sleep(2)
-            klout_score = get_klout_score_short(kloutid)
-            #print "kloutid:", kloutid, klout_score
-            time.sleep(2)
-            return kloutid, klout_score
-    except urllib2.HTTPError, e:
-        if e.code == 404: ## Not Found
-            print e
-        return None, None
-
-def get_trstrank_short(tw_id):
-    url = 'http://api.infochimps.com/social/network/tw/influence/trstrank?apikey=JianhuaShao-ZzyM911GAwNzJ1F7BEoz1ZGqw69&screen_name=%s'%tw_id
-    try:
-        web = web_openner.open(url).read()
-        js = json.loads(web)
-        #print js
-        if js == None:
-            return
-        if js.has_key('tq'):
-            tq = js['tq']
-        else:
-            tq = None
-        if js.has_key('trstrank'):
-            trstrank = js['trstrank']
-        else:
-            trstrank = None
-        return trstrank
-        print "trsttrank", trstrank
-        time.sleep(2)
-    except urllib2.HTTPError, e:
-        print e
-        return None
-
-def use_lxml_twitter_list(body):
-    c = conn.cursor()
-    html = body_clean(body)
-    #print html
-    paths = '//div[contains(text(), "#")]/..'
-    results = html.xpath(paths)
-    for r in results:
-        #print tostring(r)
-        rank = r[0].text.strip()
-        tw_name = r[2][0].text.strip()
-        #print rank, tw_name
-        #tw_id = twitter_screenname_to_id(tw_name)
-        klout_id, k_score = get_kloutid_short(tw_name)
-        trst_score = get_trstrank_short(tw_name)
-        f = open("./tweets/twibes.txt", 'a')
-        f.write('%s\t%s\t%s\t%s\t%s\n'%(rank, tw_name, klout_id, k_score, trst_score))
-        f.close()
-        print rank, tw_name, klout_id, k_score, trst_score
-        c.execute('INSERT OR IGNORE INTO tw (rank, tw_id, klout_id, klout_score, trstrank) VALUES (?,?,?,?,?)', (rank, tw_name, klout_id, k_score, trst_score))
-        conn.commit()
-    paths = '//a[contains(text(), "More...")]'
-    results = html.xpath(paths)
-    for r in results:
-        more_link = r.get('href')
-        print more_link
-        twitter_rank_read(more_link)
-    c.close()
-
-def twitter_rank_read(url):
-    print "** url:", url
-    status, body = use_httplib(url, headers)
-    if status == 200:
-        use_lxml_twitter_list(body)
-        
-
-def db_init_twibes():
-    c = conn.cursor()
-    cc = conn.cursor()
-    c.execute('SELECT rank, tw_name FROM twibes', ())
-    r = c.fetchone()
-    while r != None:
-        rank = r[0]
-        tw_name = r[1]
-        tw_id = twitter_screenname_to_id(tw_name)
-        print rank, tw_name, tw_id
-        cc.execute('INSERT OR IGNORE INTO tw (tw_id, tw_name) VALUES (?,?)', (tw_id, tw_name))
-        conn.commit()
-        r = c.fetchone()
-    c.close()
-    cc.close()
-        
-
-
-##########################################
-
-
-def twitter_screenname_to_id(screenname):
-    url = '%s/tw_id?UserName=%s'%(twidder_url, str(screenname))
-    print url
-    html = web_openner.open(url).read()
-    print html
-    value = twidder_get_value(html, {'name':'UserID'})
-    return value
-    
-def twitter_id_to_screenname(id):
-    url = '%s/tw_un?UserID=%s'%(twidder_url, str(id))
-    html = web_openner.open(url).read()
-    value = twidder_get_value(html, {'name':'UserName'})       
-    return value
-
-def twidder_get_value(html, attrs_dict):
-    try:
-        soup = BeautifulSoup(html)
-        l_value = soup.findAll('input', attrs=attrs_dict)
-        value = l_value[0]['value']
-        print value
-    except Exception, e:
-        print e
-        value = ''
-    return value
-
-def twitter_id_match(file_source):
-    f = open(file_source, 'r')
-    fo = open(file_source+".output.txt", 'w')
-    fo.write('tw_id \ttw_name \tname \tcomments\n')
-    while 1:
-        lines = f.readlines(1)
-        if not lines:
-            break
-        #print len(line)
-        for l in lines:
-            l = l.strip('\r\n')
-            ls = l.split('\t')
-            print ls
-            t_name = ls[0].strip(':')
-            t_comment = ls[2].strip()
-            t_id = ls[1].strip()
-            if t_id != 'N/A':
-                t_screenname = twitter_id_to_screenname(t_id)
-            else:
-                t_screenname = 'N/A'
-            fo.write('%s\t%s\t%s\t%s\n'%(t_id, t_screenname, t_name, t_comment))
-    f.close()
-    fo.close()
 
 tw_type_analyst = 'ANALYST'
 tw_type_organisation = 'ORGANISATION'
+tw_type_100company = '100COMPANY'
 
 sql_init = '''
-CREATE TABLE IF NOT EXISTS twibes (
-  id INTEGER PRIMARY KEY AUTOINCREMENT, 
-  rank TEXT UNIQUE,
-  tw_name TEXT, 
-  create_time TIMESTAMP DEFAULT (DATETIME('now'))
-);
 CREATE TABLE IF NOT EXISTS tw (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   tw_id TEXT UNIQUE NOT NULL,  -- here id is name
@@ -425,7 +177,7 @@ INSERT OR IGNORE INTO tw_user (tw_id) VALUES (?)
 sql_get_insert = '''
 INSERT OR IGNORE INTO tw_get (tw_id) VALUES (?)
 '''
-def tw_init(file_source, tw_type):
+def tw_100_init(file_source, tw_type):
     f = open(file_source, 'r')
     c = conn.cursor()
     i = 0
@@ -438,13 +190,19 @@ def tw_init(file_source, tw_type):
             continue
         line = line.strip()
         ls = line.split('\t')
-        tw_id = ls[0]
-        tw_name = ls[1]
-        full_name = ls[2]
-        c.execute(sql_tw_insert, (tw_id, tw_name, full_name, tw_type))
-        c.execute(sql_user_insert, (tw_id, ))
-        c.execute(sql_get_insert, (tw_id, ))
-        conn.commit()
+        full_name = ls[0]
+        tw_ids = ls[1]
+        if tw_ids.strip() == "-":
+            continue
+        tw_ids = tw_ids.split(',');
+        for tw_id in tw_ids: 
+            tw_name = '-'+str(i)
+            tw_id = tw_id.replace('"', '').strip()
+            c.execute(sql_tw_insert, (tw_id, tw_name, full_name, tw_type))
+            c.execute(sql_user_insert, (tw_id, ))
+            c.execute(sql_get_insert, (tw_id, ))
+            conn.commit()
+            i = i + 1
         #print ls
     f.close()
     c.close()
@@ -485,6 +243,8 @@ INSERT OR IGNORE INTO tw_status (tid, tw_text, tw_create_at, source, reply_to_st
 def db_status_insert(tid, tw_text, tw_create_at, source, reply_to_status, reply_to_user, reply_to_username, geo, coordinates, place, contributors, retweet_count, favorited, retweeted, possibly_sensitive, retweet_status_id, hashtags, urls, user_mentions, tw_id):
     c = conn.cursor()
     #print tid, tw_text, source, reply_to_status, reply_to_user, reply_to_username, geo, coordinates, place, contributors, retweet_count, favorited, retweeted, possibly_sensitive, retweet_status_id, hashtags, urls, user_mentions, tw_id
+    #print type(tid), type(tw_text), type(source), type(reply_to_status), type(reply_to_user), type(reply_to_username), type(geo), type(coordinates), type(place), type(contributors), type(retweet_count), type(favorited), type(retweeted), type(possibly_sensitive), type(retweet_status_id), type(hashtags), type(urls), type(user_mentions), type(tw_id)
+    #print type(place), contributors, type(contributors)
     c.execute(sql_status_insert, (tid, tw_text, tw_create_at, source, reply_to_status, reply_to_user, reply_to_username, geo, coordinates, place, contributors, retweet_count, favorited, retweeted, possibly_sensitive, retweet_status_id, hashtags, urls, user_mentions, tw_id))
     conn.commit()
     c.close()
@@ -499,6 +259,7 @@ def twitter_response_parse(html, tw_id):
     min_id = 0
     #tw_id = 0
     i = 0
+    #print js
     for j in js:
         #print j
         tw_created_at = j['created_at']
@@ -515,6 +276,7 @@ def twitter_response_parse(html, tw_id):
         place = j['place']
         place = json.dumps(place)
         contributors = j['contributors']
+        contributors =  json.dumps(contributors)
         retweet_count = j['retweet_count']
         favorited = j['favorited']
         retweeted = j['retweeted']
@@ -723,7 +485,7 @@ def twitter_read_loop_min(tw_id):
         c.execute(sql_get_min_get, (tw_id, ))
         raw = c.fetchone()
         min_id = raw[0]
-        url = 'https://api.twitter.com/1/statuses/user_timeline.json?include_entities=true&include_rts=true&screen_name=%s&count=199&max_id=%s'%(tw_id, min_id)
+        url = 'https://api.twitter.com/1.1/statuses/user_timeline.json?include_entities=true&include_rts=true&screen_name=%s&count=199&max_id=%s'%(tw_id, min_id)
         twitter_api_read(url, tw_id, 'min')
     c.close()
 
@@ -736,7 +498,7 @@ def twitter_read(tw_id):
     #print "twitter_read:", tw_id, min_id, type(min_id)
     #print min_id, type(min_id)
     if min_id == None:
-        url = 'https://api.twitter.com/1/statuses/user_timeline.json?include_entities=true&include_rts=true&screen_name=%s&count=199'%tw_id ############
+        url = 'https://api.twitter.com/1.1/statuses/user_timeline.json?include_entities=true&include_rts=true&screen_name=%s&count=199'%tw_id ############
         twitter_api_read(url, tw_id, 'min')
     else:
         twitter_read_loop_min(tw_id)
@@ -763,7 +525,7 @@ sql_status_get_all = '''
 SELECT * FROM tw_status
 '''
 def all_status_to_txt():
-    f = codecs.open('./tweets/twitter_status_all.txt', mode='w', encoding='utf-8')
+    f = codecs.open('./tweets/twitter_status_100company_all.txt', mode='w', encoding='utf-8')
     f.write('twitter_id \ttweet \ttweet_id \ttweet_create_at \tretweet_count \tfavorited_count \tretweet \thashtags \turls \tuser_mentions \treplay_to_status \treply_to_user \tgeo \tcoordinates \tplace\n')
     c = conn.cursor()
     c.execute(sql_status_get_all, ())
@@ -1178,7 +940,7 @@ sql_status_get_all = '''
 SELECT * FROM tw_status ORDER BY tw_id
 '''
 def all_status_to_txt_short_most_recent():
-    f = codecs.open('./tweets/twitter_status_all_short_most_recent_100.txt', mode='w', encoding='utf-8')
+    f = codecs.open('./tweets/twitter_status_100company_all_short_most_recent_100.txt', mode='w', encoding='utf-8')
     f.write('twitter_id \ttweet \ttweet_id \ttweet_create_at \tretweet_count \tfavorited_count \tretweet \thashtags \turls \tuser_mentions \treplay_to_status \treply_to_user \tgeo \tcoordinates \tplace\n')
     c = conn.cursor()
     c.execute(sql_status_get_all, ())
@@ -1221,7 +983,7 @@ sql_status_get_all_short_percent_by_id = '''
 SELECT DISTINCT(tid) FROM tw_status WHERE tw_id = ?
 '''
 def all_status_to_txt_short_percent(percent):
-    f = codecs.open('./tweets/twitter_status_all_short_percent_%d.txt'%percent, mode='w', encoding='utf-8')
+    f = codecs.open('./tweets/twitter_status_100company_all_short_percent_%d.txt'%percent, mode='w', encoding='utf-8')
     f.write('twitter_id \ttweet_id \ttweet \ttweet_create_at \tretweet_count \tfavorited_count \tretweet \thashtags \turls \tuser_mentions \treplay_to_status \treply_to_user \tgeo \tcoordinates \tplace\n')
     tw_ids = []
     c = conn.cursor()
@@ -1268,19 +1030,16 @@ def all_status_to_txt_short_percent(percent):
     f.close()
 
 if __name__ == "__main__":
-    #db_init()
-    #url = '/finance/twitter-list'
-    #twitter_rank_read(url)
-    #db_init_twibes()
-    #tw_init_get()
-    #oauth_init()
-    #twitter_api_read_main()
+    db_init()
+    input_file_path = './tweets/Fortune100 Twitter IDs.txt'
+    tw_100_init(input_file_path, tw_type_100company)
+    #oauth_init() ## only be used first time to get oauth code, it is same for all machine, so no need to change is running on same machine. 
+    twitter_api_read_main()
     #all_status_to_txt()
     #all_status_to_txt_short_most_recent()
     #all_status_to_txt_short_percent(100)
+    ## follow can be run in seperate. 
     klout_user_list()
     #infochimps_user_list()
     #infochimps_output()
     #klout_output()
-
-    
