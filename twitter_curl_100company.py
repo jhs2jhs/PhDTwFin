@@ -263,6 +263,7 @@ def twitter_response_parse(html, tw_id):
     for j in js:
         #print j
         tw_created_at = j['created_at']
+        #print tw_created_at, "hello"
         tid = j['id']
         tw_text = j['text'] ##
         source = j['source']
@@ -307,12 +308,13 @@ def twitter_response_parse(html, tw_id):
         tw_followers = user['followers_count']
         tw_friends = user['friends_count']
         tw_listed = user['listed_count']
-        tw_created_at = user['created_at']
+        tw_user_created_at = user['created_at']
         tw_status = user['statuses_count']
         #
         #print tw_id, "world"
+        print tw_created_at, tw_user_created_at
         db_status_insert(tid, tw_text, tw_created_at, source, reply_to_status, reply_to_user, reply_to_username, geo, coordinates, place, contributors, retweet_count, favorited, retweeted, possibly_sensitive, retweet_status_id, hashtags, urls, user_mentions, tw_get_id)
-        db_user_update(tw_id, tw_screenname, tw_location, tw_desc, tw_url, tw_followers, tw_friends, tw_listed, tw_created_at, tw_status, tw_get_id)
+        db_user_update(tw_id, tw_screenname, tw_location, tw_desc, tw_url, tw_followers, tw_friends, tw_listed, tw_user_created_at, tw_status, tw_get_id)
         #
         if i == 0:
             max_id = tid
@@ -521,34 +523,6 @@ def twitter_api_read_main():
         print 'i:', i
     c.close()
 
-sql_status_get_all = '''
-SELECT * FROM tw_status
-'''
-def all_status_to_txt():
-    f = codecs.open('./tweets/twitter_status_100company_all.txt', mode='w', encoding='utf-8')
-    f.write('twitter_id \ttweet \ttweet_id \ttweet_create_at \tretweet_count \tfavorited_count \tretweet \thashtags \turls \tuser_mentions \treplay_to_status \treply_to_user \tgeo \tcoordinates \tplace\n')
-    c = conn.cursor()
-    c.execute(sql_status_get_all, ())
-    for raw in c.fetchall():
-        tid = raw[1]
-        tw_text = raw[2].strip().replace('\n', '').replace('\r', '')
-        reply_to_status = raw[4]
-        reply_to_user = raw[5]
-        geo = raw[7]
-        coordinates = raw[8]
-        place = raw[9]
-        retweet_count = raw[11]
-        favorited = raw[12]
-        retweet = raw[13]
-        hashtags = raw[16]
-        urls = raw[17]
-        user_mentions = raw[18]
-        tw_id = raw[19]
-        tw_create_at = raw[20]
-        print tw_id, tw_text, tid, tw_create_at, retweet_count, favorited, retweet, hashtags, urls, user_mentions, reply_to_status, reply_to_status, reply_to_user, geo, coordinates, place
-        f.write('%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n'%(tw_id, tw_text, tid, tw_create_at, retweet_count, favorited, retweet, hashtags, urls, user_mentions, reply_to_status, reply_to_user, geo, coordinates, place))
-    c.close()
-    f.close()
 
 
 sql_klout_twitter_insert = '''
@@ -921,113 +895,6 @@ def klout_output():
     f.close()
     
 
-def tw_init_get():
-    cc = conn.cursor()
-    c = conn.cursor()
-    c.execute('SELECT rank, tw_id FROM tw', ())
-    r = c.fetchone()
-    while r!=None:
-        tw_id = r[1]
-        rank = r[0]
-        print rank, tw_id
-        cc.execute(sql_get_insert, (tw_id, ))
-        cc.execute(sql_user_insert, (tw_id, ))
-        r = c.fetchone()
-    c.close()
-    cc.close()
-
-sql_status_get_all = '''
-SELECT * FROM tw_status ORDER BY tw_id
-'''
-def all_status_to_txt_short_most_recent():
-    f = codecs.open('./tweets/twitter_status_100company_all_short_most_recent_100.txt', mode='w', encoding='utf-8')
-    f.write('twitter_id \ttweet \ttweet_id \ttweet_create_at \tretweet_count \tfavorited_count \tretweet \thashtags \turls \tuser_mentions \treplay_to_status \treply_to_user \tgeo \tcoordinates \tplace\n')
-    c = conn.cursor()
-    c.execute(sql_status_get_all, ())
-    id_pre = ''
-    i = 0
-    for raw in c.fetchall():
-        tid = raw[1]
-        tw_text = raw[2].strip().replace('\n', '').replace('\r', '')
-        reply_to_status = raw[4]
-        reply_to_user = raw[5]
-        geo = raw[7]
-        coordinates = raw[8]
-        place = raw[9]
-        retweet_count = raw[11]
-        favorited = raw[12]
-        retweet = raw[13]
-        hashtags = raw[16]
-        urls = raw[17]
-        user_mentions = raw[18]
-        tw_id = raw[19]
-        tw_create_at = raw[20]
-        i = i+ 1
-        #print i
-        if tw_id != id_pre:
-            id_pre = tw_id
-            i = 0
-        if i>= 100:
-            continue
-        #print tw_id, tw_text, tid, tw_create_at, retweet_count, favorited, retweet, hashtags, urls, user_mentions, reply_to_status, reply_to_status, reply_to_user, geo, coordinates, place
-        print i
-        f.write('%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n'%(tw_id, tw_text, tid, tw_create_at, retweet_count, favorited, retweet, hashtags, urls, user_mentions, reply_to_status, reply_to_user, geo, coordinates, place))
-    c.close()
-    f.close()
-
-import random
-sql_status_get_all_short_percent = '''
-SELECT DISTINCT(tw_id) FROM tw_status
-'''
-sql_status_get_all_short_percent_by_id = '''
-SELECT DISTINCT(tid) FROM tw_status WHERE tw_id = ?
-'''
-def all_status_to_txt_short_percent(percent):
-    f = codecs.open('./tweets/twitter_status_100company_all_short_percent_%d.txt'%percent, mode='w', encoding='utf-8')
-    f.write('twitter_id \ttweet_id \ttweet \ttweet_create_at \tretweet_count \tfavorited_count \tretweet \thashtags \turls \tuser_mentions \treplay_to_status \treply_to_user \tgeo \tcoordinates \tplace\n')
-    tw_ids = []
-    c = conn.cursor()
-    c.execute(sql_status_get_all_short_percent, ())
-    for r in c.fetchall():
-        tw_ids.append(r[0])
-    for tw_id in tw_ids:
-        c.execute(sql_status_get_all_short_percent_by_id, (tw_id, ))
-        rds = []
-        for r in c.fetchall():
-            rds.append(int(r[0]))
-        ls = int(len(rds) * percent * 0.01)
-        print '\t', len(rds), '\t', ls, '\t', tw_id
-        rds = random.sample(rds, ls)
-        if len(rds) == 1:
-            rds_str = '('+str(rds[0])+')'
-        else:
-            rds_str = str(tuple(rds))
-        #print rds_str
-        sql_rds_str = 'SELECT * FROM tw_status WHERE tid in %s'%(rds_str)
-        c.execute(sql_rds_str, ())
-        i = 0
-        for raw in c.fetchall():
-            tid = raw[1]
-            tw_text = raw[2].strip().replace('\n', '').replace('\r', '').replace('\t', '')
-            reply_to_status = raw[4]
-            reply_to_user = raw[5]
-            geo = raw[7]
-            coordinates = raw[8]
-            place = raw[9]
-            retweet_count = raw[11]
-            favorited = raw[12]
-            retweet = raw[13]
-            hashtags = raw[16]
-            urls = raw[17]
-            user_mentions = raw[18]
-            tw_id = raw[19]
-            tw_create_at = raw[20]
-            i = i+ 1
-        #print tw_id, tw_text, tid, tw_create_at, retweet_count, favorited, retweet, hashtags, urls, user_mentions, reply_to_status, reply_to_status, reply_to_user, geo, coordinates, place
-            f.write('%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n'%(tw_id, tid, tw_text, tw_create_at, retweet_count, favorited, retweet, hashtags, urls, user_mentions, reply_to_status, reply_to_user, geo, coordinates, place))
-        #print i, 'haha'
-    c.close()
-    f.close()
 
 if __name__ == "__main__":
     db_init()
@@ -1035,9 +902,6 @@ if __name__ == "__main__":
     tw_100_init(input_file_path, tw_type_100company)
     #oauth_init() ## only be used first time to get oauth code, it is same for all machine, so no need to change is running on same machine. 
     twitter_api_read_main()
-    #all_status_to_txt()
-    #all_status_to_txt_short_most_recent()
-    #all_status_to_txt_short_percent(100)
     ## follow can be run in seperate. 
     klout_user_list()
     #infochimps_user_list()

@@ -547,12 +547,12 @@ def twitter_response_parse(html, tw_id):
         tw_followers = user['followers_count']
         tw_friends = user['friends_count']
         tw_listed = user['listed_count']
-        tw_created_at = user['created_at']
+        tw_user_created_at = user['created_at']
         tw_status = user['statuses_count']
         #
-        #print tw_id, "world"
+        print tw_id, "world", tw_created_at, tw_user_created_at
         db_status_insert(tid, tw_text, tw_created_at, source, reply_to_status, reply_to_user, reply_to_username, geo, coordinates, place, contributors, retweet_count, favorited, retweeted, possibly_sensitive, retweet_status_id, hashtags, urls, user_mentions, tw_get_id)
-        db_user_update(tw_id, tw_screenname, tw_location, tw_desc, tw_url, tw_followers, tw_friends, tw_listed, tw_created_at, tw_status, tw_get_id)
+        db_user_update(tw_id, tw_screenname, tw_location, tw_desc, tw_url, tw_followers, tw_friends, tw_listed, tw_user_created_at, tw_status, tw_get_id)
         #
         if i == 0:
             max_id = tid
@@ -564,7 +564,7 @@ def twitter_response_parse(html, tw_id):
             min_id = tid
         #print created_at, tw_name
         #tw_id = tid
-    print 'twitter_response_parse', tw_id, tw_get_id, min_id, max_id, tid
+    print 'twitter_response_parse', tw_id, tw_get_id, min_id, max_id
     if tw_get_id != 0:
         tw_get_id_update(tw_get_id, max_id, min_id)
         tw_get_min_finish_check(tw_get_id)

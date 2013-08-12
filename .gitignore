@@ -18,3 +18,5 @@ test/*
 *copy*
 
 *.tsv
+
+*/WordScore/*
